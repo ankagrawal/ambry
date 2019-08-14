@@ -143,7 +143,7 @@ class CloudBlobStore implements Store {
     } catch (CloudStorageException e) {
       throw new StoreException(e, StoreErrorCodes.IOError);
     }
-    CloudMessageReadSet messageReadSet = new CloudMessageReadSet(blobReadInfos, this);
+    CloudMessageReadSet messageReadSet = new CloudMessageReadSet(blobReadInfos, new CloudBlobDownloader(this));
     return new StoreInfo(messageReadSet, messageInfos);
   }
 
@@ -553,6 +553,19 @@ class CloudBlobStore implements Store {
     @Override
     protected boolean removeEldestEntry(Map.Entry<String, BlobState> eldest) {
       return (this.size() > maxEntries);
+    }
+  }
+
+  static class CloudBlobDownloader {
+    private final CloudBlobStore cloudBlobStore;
+
+    public CloudBlobDownloader(CloudBlobStore cloudBlobStore) {
+      this.cloudBlobStore = cloudBlobStore;
+    }
+
+    public void downloadBlob(BlobId blobId, CloudBlobMetadata metadata, OutputStream outputStream)
+        throws StoreException {
+      cloudBlobStore.downloadBlob(metadata, blobId, outputStream);
     }
   }
 }

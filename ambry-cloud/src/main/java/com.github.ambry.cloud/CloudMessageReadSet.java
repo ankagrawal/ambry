@@ -34,12 +34,12 @@ import org.slf4j.LoggerFactory;
 class CloudMessageReadSet implements MessageReadSet {
 
   private final List<BlobReadInfo> blobReadInfoList;
-  private final CloudBlobStore blobStore;
+  private final CloudBlobStore.CloudBlobDownloader blobDownloader;
   private final Logger logger = LoggerFactory.getLogger(getClass());
 
-  CloudMessageReadSet(List<BlobReadInfo> blobReadInfoList, CloudBlobStore blobStore) {
+  CloudMessageReadSet(List<BlobReadInfo> blobReadInfoList, CloudBlobStore.CloudBlobDownloader blobDownloader) {
     this.blobReadInfoList = blobReadInfoList;
-    this.blobStore = blobStore;
+    this.blobDownloader = blobDownloader;
   }
 
   @Override
@@ -54,7 +54,7 @@ class CloudMessageReadSet implements MessageReadSet {
         outputBuffer.flip();
         written = channel.write(outputBuffer);
       } else {
-        blobReadInfo.downloadBlob(blobStore, Channels.newOutputStream(channel));
+        blobReadInfo.downloadBlob(blobDownloader, Channels.newOutputStream(channel));
         written = blobReadInfo.getBlobSize();
       }
     } catch (StoreException ex) {
@@ -85,7 +85,7 @@ class CloudMessageReadSet implements MessageReadSet {
   @Override
   public void doPrefetch(int index, long relativeOffset, long size) throws IOException {
     try {
-      blobReadInfoList.get(index).prefetchBlob(blobStore);
+      blobReadInfoList.get(index).prefetchBlob(blobDownloader);
     } catch (StoreException ex) {
       throw new IOException("Prefetch of cloud blob " + blobReadInfoList.get(index).getBlobId().getID() + " failed");
     }
@@ -119,26 +119,26 @@ class CloudMessageReadSet implements MessageReadSet {
 
     /**
      * Prefetch the {@code blob} from {@code CloudDestination} and put it in {@code prefetchedBuffer}
-     * @param blobStore {@code CloudBlobStore} implementation representing the cloud from which download will happen.
+     * @param blobDownloader {@code CloudBlobDownloader} instance to download blob from cloud.
      * @throws StoreException if blob cloud not be downloaded
      */
-    public void prefetchBlob(CloudBlobStore blobStore) throws StoreException {
+    public void prefetchBlob(CloudBlobStore.CloudBlobDownloader blobDownloader) throws StoreException {
       // Casting blobsize to int, as blobs are chunked in Ambry, and chunk size is 4/8MB.
       // However, if in future, if very large size of blobs are allowed, then prefetching logic should be changed.
       prefetchedBuffer = ByteBuffer.allocate((int) blobMetadata.getSize());
       ByteBufferOutputStream outputStream = new ByteBufferOutputStream(prefetchedBuffer);
-      blobStore.downloadBlob(blobMetadata, blobId, outputStream);
+      blobDownloader.downloadBlob(blobId, blobMetadata, outputStream);
       isPrefetched = true;
     }
 
     /**
      * Donwload the blob from the {@code CloudDestination} to the {@code OutputStream}
-     * @param blobStore {@code CloudBlobStore} implementation representing the cloud from which download will happen.
+     * @param blobDownloader {@code CloudBlobDownloader} instance to download blob from cloud.
      * @param outputStream OutputStream to download the blob to
      * @throws StoreException if blob download fails.
      */
-    public void downloadBlob(CloudBlobStore blobStore, OutputStream outputStream) throws StoreException {
-      blobStore.downloadBlob(blobMetadata, blobId, outputStream);
+    public void downloadBlob(CloudBlobStore.CloudBlobDownloader blobDownloader, OutputStream outputStream) throws StoreException {
+      blobDownloader.downloadBlob(blobId, blobMetadata, outputStream);
     }
 
     /**
