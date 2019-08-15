@@ -46,6 +46,7 @@ public class CloudBlobMetadata {
   private String vcrKmsContext;
   private String cryptoAgentFactory;
   private String cloudBlobName;
+  private long encryptedSize;
 
   /**
    * Possible values of encryption origin for cloud stored blobs.
@@ -80,6 +81,24 @@ public class CloudBlobMetadata {
    */
   public CloudBlobMetadata(BlobId blobId, long creationTime, long expirationTime, long size,
       EncryptionOrigin encryptionOrigin, String vcrKmsContext, String cryptoAgentFactory) {
+    this(blobId, creationTime, expirationTime, size, encryptionOrigin, vcrKmsContext, cryptoAgentFactory, -1);
+  }
+
+  /**
+   * Constructor from {@link BlobId}.
+   * @param blobId The BlobId for metadata record.
+   * @param creationTime The blob creation time.
+   * @param expirationTime The blob expiration time.
+   * @param size The blob size.
+   * @param encryptionOrigin The blob's encryption origin.
+   * @param vcrKmsContext The KMS context used to encrypt the blob.  Only used when encryptionOrigin = VCR.
+   * @param cryptoAgentFactory The class name of the {@link CloudBlobCryptoAgentFactory} used to encrypt the blob.
+   *                         Only used when encryptionOrigin = VCR.
+   * @param encryptedSize The size of the uploaded blob if it was encrypted and then uploaded.
+   *                      Only used when encryptionOrigin = VCR.
+   */
+  public CloudBlobMetadata(BlobId blobId, long creationTime, long expirationTime, long size,
+      EncryptionOrigin encryptionOrigin, String vcrKmsContext, String cryptoAgentFactory, long encryptedSize) {
     this.id = blobId.getID();
     this.partitionId = blobId.getPartition().toPathString();
     this.accountId = blobId.getAccountId();
@@ -93,6 +112,7 @@ public class CloudBlobMetadata {
     this.vcrKmsContext = vcrKmsContext;
     this.cryptoAgentFactory = cryptoAgentFactory;
     this.cloudBlobName = blobId.getID();
+    this.encryptedSize = encryptedSize;
   }
 
   /**
@@ -309,6 +329,22 @@ public class CloudBlobMetadata {
    */
   public CloudBlobMetadata setCryptoAgentFactory(String cryptoAgentFactory) {
     this.cryptoAgentFactory = cryptoAgentFactory;
+    return this;
+  }
+
+  /**
+   * @return the encrypted size of the blob if the blob was encrypted and uploaded to cloud, -1 otherwise
+   */
+  public long getEncryptedSize() {
+    return encryptedSize;
+  }
+
+  /**
+   * Sets the encrypted size of the blob
+   * @param encryptedSize
+   */
+  public CloudBlobMetadata setEncryptedSize(long encryptedSize) {
+    this.encryptedSize = encryptedSize;
     return this;
   }
 
