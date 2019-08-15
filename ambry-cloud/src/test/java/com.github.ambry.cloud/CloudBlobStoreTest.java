@@ -622,6 +622,10 @@ public class CloudBlobStoreTest {
         BlobDataType.DATACHUNK);
   }
 
+  /**
+   * Test cloud store get method.
+   * @throws Exception
+   */
   @Test
   public void testStoreGets() throws Exception {
     testStoreGets(false);
@@ -629,7 +633,7 @@ public class CloudBlobStoreTest {
   }
 
   /**
-   * Test cloud store get method.
+   * Test cloud store get method with the given encryption requirement.
    * @throws Exception
    */
   private void testStoreGets(boolean requireEncryption) throws Exception {
