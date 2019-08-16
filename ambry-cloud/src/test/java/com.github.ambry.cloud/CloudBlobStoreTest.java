@@ -628,7 +628,16 @@ public class CloudBlobStoreTest {
    */
   @Test
   public void testStoreGets() throws Exception {
-    setupCloudStore(true, false, defaultCacheLimit, true);
+    testStoreGets(false);
+    testStoreGets(true);
+  }
+
+  /**
+   * Test cloud store get method with the given encryption requirement.
+   * @throws Exception
+   */
+  private void testStoreGets(boolean requireEncryption) throws Exception {
+    setupCloudStore(true, requireEncryption, defaultCacheLimit, true);
     // Put blobs with and without expiration and encryption
     MockMessageWriteSet messageWriteSet = new MockMessageWriteSet();
     int count = 5;

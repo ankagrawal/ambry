@@ -33,6 +33,7 @@ import com.github.ambry.store.StoreKey;
 import com.github.ambry.store.StoreStats;
 import com.github.ambry.store.Write;
 import com.github.ambry.utils.ByteBufferInputStream;
+import com.github.ambry.utils.ByteBufferOutputStream;
 import com.github.ambry.utils.Utils;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -146,10 +147,17 @@ class CloudBlobStore implements Store {
     return new StoreInfo(messageReadSet, messageInfos);
   }
 
-  public void downloadBlob(BlobId blobId, OutputStream outputStream) throws StoreException {
+  public void downloadBlob(CloudBlobMetadata cloudBlobMetadata, BlobId blobId, OutputStream outputStream) throws StoreException {
     try {
-      cloudDestination.downloadBlob(blobId, outputStream);
-    } catch (CloudStorageException e) {
+      if (cloudBlobMetadata.getEncryptionOrigin().equals(EncryptionOrigin.VCR)) {
+        ByteBuffer encryptedBlob = ByteBuffer.allocate((int) cloudBlobMetadata.getEncryptedSize());
+        cloudDestination.downloadBlob(blobId, new ByteBufferOutputStream(encryptedBlob));
+        ByteBuffer decryptedBlob = cryptoAgent.decrypt(encryptedBlob);
+        outputStream.write(decryptedBlob.array());
+      } else {
+        cloudDestination.downloadBlob(blobId, outputStream);
+      }
+    } catch (CloudStorageException | GeneralSecurityException | IOException e) {
       throw new StoreException("Error occured in downloading blob for blobid :" + blobId, StoreErrorCodes.IOError);
     }
   }
@@ -233,7 +241,7 @@ class CloudBlobStore implements Store {
       String kmsContext = null;
       String cryptoAgentFactoryClass = null;
       EncryptionOrigin encryptionOrigin = isRouterEncrypted ? EncryptionOrigin.ROUTER : EncryptionOrigin.NONE;
-      boolean bufferChanged = false;
+      long encryptedSize = -1;
       if (requireEncryption) {
         if (isRouterEncrypted) {
           // Nothing further needed
@@ -242,7 +250,7 @@ class CloudBlobStore implements Store {
           Timer.Context encryptionTimer = vcrMetrics.blobEncryptionTime.time();
           try {
             messageBuf = cryptoAgent.encrypt(messageBuf);
-            bufferChanged = true;
+            encryptedSize = messageBuf.remaining();
           } catch (GeneralSecurityException ex) {
             vcrMetrics.blobEncryptionErrorCount.inc();
           } finally {
@@ -258,9 +266,9 @@ class CloudBlobStore implements Store {
       }
       CloudBlobMetadata blobMetadata =
           new CloudBlobMetadata(blobId, messageInfo.getOperationTimeMs(), messageInfo.getExpirationTimeInMs(),
-              messageInfo.getSize(), encryptionOrigin, kmsContext, cryptoAgentFactoryClass);
+              messageInfo.getSize(), encryptionOrigin, kmsContext, cryptoAgentFactoryClass, encryptedSize);
       // If buffer was encrypted, we no longer know its size
-      long bufferlen = bufferChanged ? -1 : size;
+      long bufferlen = (encryptedSize == -1) ? size : encryptedSize;
       cloudDestination.uploadBlob(blobId, bufferlen, blobMetadata, new ByteBufferInputStream(messageBuf));
       addToCache(blobId.getID(), BlobState.CREATED);
     } else {
