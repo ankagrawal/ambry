@@ -48,8 +48,8 @@ public class MockClusterMap implements ClusterMap {
   protected final Map<Long, PartitionId> partitions;
   protected final List<MockDataNodeId> dataNodes;
   protected final int numMountPointsPerNode;
-  private final List<String> dataCentersInClusterMap = new ArrayList<>();
-  private final Map<String, List<MockDataNodeId>> dcToDataNodes = new HashMap<>();
+  protected final List<String> dataCentersInClusterMap = new ArrayList<>();
+  protected final Map<String, List<MockDataNodeId>> dcToDataNodes = new HashMap<>();
   private final ClusterMapUtils.PartitionSelectionHelper partitionSelectionHelper;
   protected boolean partitionsUnavailable = false;
   private boolean createNewRegistry = true;

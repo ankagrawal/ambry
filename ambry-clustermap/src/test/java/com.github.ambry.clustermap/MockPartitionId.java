@@ -160,4 +160,8 @@ public class MockPartitionId implements PartitionId {
   public void onPartitionReadOnly() {
     /* noop for now */
   }
+
+  public void addReplica(ReplicaId replica) {
+    replicaIds.add(replica);
+  }
 }

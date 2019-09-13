@@ -23,14 +23,14 @@ import static com.github.ambry.clustermap.ClusterMapSnapshotConstants.*;
 
 public class MockReplicaId implements ReplicaId {
 
-  private String mountPath;
-  private String replicaPath;
-  private List<ReplicaId> peerReplicas;
-  private MockPartitionId partitionId;
-  private MockDataNodeId dataNodeId;
-  private MockDiskId diskId;
-  private boolean isMarkedDown = false;
-  private volatile boolean isSealed;
+  protected String mountPath;
+  protected String replicaPath;
+  protected List<ReplicaId> peerReplicas;
+  protected MockPartitionId partitionId;
+  protected MockDataNodeId dataNodeId;
+  protected MockDiskId diskId;
+  protected boolean isMarkedDown = false;
+  protected volatile boolean isSealed;
 
   public MockReplicaId() {
   }
@@ -168,5 +168,9 @@ public class MockReplicaId implements ReplicaId {
    */
   public void markReplicaDownStatus(boolean isDown) {
     isMarkedDown = isDown;
+  }
+
+  public void addPeerReplica(ReplicaId replicaId) {
+    peerReplicas.add(replicaId);
   }
 }
