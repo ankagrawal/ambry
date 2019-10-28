@@ -14,6 +14,8 @@
 package com.github.ambry.cloud;
 
 import com.codahale.metrics.MetricRegistry;
+import com.github.ambry.clustermap.CloudDataNode;
+import com.github.ambry.clustermap.CloudReplica;
 import com.github.ambry.clustermap.ClusterMap;
 import com.github.ambry.clustermap.ClusterMapUtils;
 import com.github.ambry.clustermap.DataNodeId;
@@ -291,7 +293,7 @@ public class CloudBlobStoreTest {
     when(dest.findEntriesSince(anyString(), any(CloudFindToken.class), anyLong())).thenReturn(Collections.emptyList());
     findInfo = store.findEntriesSince(outputToken, maxTotalSize);
     assertTrue(findInfo.getMessageEntries().isEmpty());
-    FindToken finalToken = (CloudFindToken) findInfo.getFindToken();
+    FindToken finalToken = findInfo.getFindToken();
     assertEquals(outputToken, finalToken);
   }
 

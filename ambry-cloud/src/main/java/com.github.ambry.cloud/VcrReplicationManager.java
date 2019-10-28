@@ -13,6 +13,7 @@
  */
 package com.github.ambry.cloud;
 
+import com.github.ambry.clustermap.CloudReplica;
 import com.github.ambry.clustermap.ClusterMap;
 import com.github.ambry.clustermap.PartitionId;
 import com.github.ambry.clustermap.ReplicaId;
@@ -252,5 +253,19 @@ public class VcrReplicationManager extends ReplicationEngine {
 
   public VcrMetrics getVcrMetrics() {
     return vcrMetrics;
+  }
+
+  @Override
+  public void updateTotalBytesReadByRemoteReplica(PartitionId partitionId, String hostName, String replicaPath,
+      long totalBytesRead) {
+    // Since replica metadata request for a single partition can goto multiple vcr nodes, totalBytesReadByRemoteReplica
+    // cannot be  populated locally on any vcr node.
+    return;
+  }
+
+  @Override
+  public long getRemoteReplicaLagFromLocalInBytes(PartitionId partitionId, String hostName, String replicaPath) {
+    // TODO get replica lag from cosmos
+    return -1;
   }
 }
