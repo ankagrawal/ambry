@@ -146,9 +146,7 @@ public class CosmosDataAccessor {
     try {
       // Note: internal query iterator wraps DocumentClientException in IllegalStateException!
       List<CloudBlobMetadata> metadataList = new ArrayList<>();
-      response.getQueryIterable()
-          .iterator()
-          .forEachRemaining(doc -> metadataList.add(doc.toObject(CloudBlobMetadata.class)));
+      response.getQueryIterable().iterator().forEachRemaining(doc -> metadataList.add(createMetadataFromDocument(doc)));
       return metadataList;
     } catch (RuntimeException rex) {
       if (rex.getCause() instanceof DocumentClientException) {
@@ -158,6 +156,17 @@ public class CosmosDataAccessor {
         throw rex;
       }
     }
+  }
+
+  /**
+   * Create {@link CloudBlobMetadata} object from {@link Document} object.
+   * @param document {@link Document} object from which {@link CloudBlobMetadata} object will be created.
+   * @return {@link CloudBlobMetadata} object.
+   */
+  CloudBlobMetadata createMetadataFromDocument(Document document) {
+    CloudBlobMetadata cloudBlobMetadata = document.toObject(CloudBlobMetadata.class);
+    cloudBlobMetadata.setLastUpdateTime(document.getLong(CloudBlobMetadata.FIELD_UPDATE_TIME));
+    return cloudBlobMetadata;
   }
 
   /**
