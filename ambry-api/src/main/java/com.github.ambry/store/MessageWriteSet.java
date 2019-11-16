@@ -13,6 +13,7 @@
  */
 package com.github.ambry.store;
 
+import com.github.ambry.clustermap.PartitionId;
 import java.util.List;
 
 
@@ -27,6 +28,16 @@ public interface MessageWriteSet {
    * @return The size in bytes that was written to the write interface
    */
   public long writeTo(Write writeChannel) throws StoreException;
+
+  /**
+   * Write the messages in this set to the given write channel
+   * @param writeChannel The write interface to write the messages to
+   * @param partitionId partitionId of the store
+   * @return The size in bytes that was written to the write interface
+   */
+  default long writeTo(Write writeChannel, PartitionId partitionId) throws StoreException {
+    return -1;
+  }
 
   /**
    * Returns info about the messages contained in this write set. The messages

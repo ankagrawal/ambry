@@ -38,6 +38,10 @@ allprojects {
         mavenCentral()
         mavenLocal()
     }
+
+    dependencies {
+        compile group:'org.xerial', name:'sqlite-jdbc', version:'3.27.2.1'
+    }
 }
 
 subprojects {
@@ -229,7 +233,8 @@ project(':ambry-server') {
 project(':ambry-store') {
     dependencies {
         compile project(':ambry-api'),
-                project(':ambry-utils')
+                project(':ambry-utils'),
+                project(':ambry-messageformat')
         compile "com.codahale.metrics:metrics-core:$metricsVersion"
         compile "net.smacke:jaydio:$jaydioVersion"
         testCompile project(':ambry-clustermap')

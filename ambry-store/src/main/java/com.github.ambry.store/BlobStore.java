@@ -384,7 +384,7 @@ public class BlobStore implements Store {
 
           if (state == MessageWriteSetStateInStore.ALL_ABSENT) {
             Offset endOffsetOfLastMessage = log.getEndOffset();
-            messageSetToWrite.writeTo(log);
+            messageSetToWrite.writeTo(log, replicaId.getPartitionId());
             logger.trace("Store : {} message set written to log", dataDir);
 
             List<MessageInfo> messageInfo = messageSetToWrite.getMessageSetInfo();

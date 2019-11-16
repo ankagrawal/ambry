@@ -47,6 +47,7 @@ import com.github.ambry.protocol.ReplicaMetadataResponse;
 import com.github.ambry.protocol.ReplicaMetadataResponseInfo;
 import com.github.ambry.server.ServerErrorCode;
 import com.github.ambry.store.MessageInfo;
+import com.github.ambry.store.SqlDedupLogger;
 import com.github.ambry.store.StoreErrorCodes;
 import com.github.ambry.store.StoreException;
 import com.github.ambry.store.StoreKey;
@@ -860,7 +861,8 @@ public class ReplicaThread implements Runnable {
                 logger.debug(
                     "MessageInfoList is of size 0 as all messages are invalidated, deprecated, deleted or expired.");
               } else {
-                writeset = new MessageFormatWriteSet(validMessageDetectionInputStream, messageInfoList, false);
+                writeset = new MessageFormatWriteSet(validMessageDetectionInputStream, messageInfoList, false,
+                    SqlDedupLogger.getSqlDedupLogger());
                 remoteReplicaInfo.getLocalStore().put(writeset);
               }
 
