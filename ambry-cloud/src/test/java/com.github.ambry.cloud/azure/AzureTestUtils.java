@@ -28,6 +28,7 @@ import com.microsoft.azure.cosmosdb.rx.AsyncDocumentClient;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -147,14 +148,16 @@ class AzureTestUtils {
    */
   static void mockObservableForChangeFeedQuery(List<Document> documentList,
       Observable<FeedResponse<Document>> mockResponse) {
-    FeedResponse<Document> feedResponse = mock(FeedResponse.class);
+    FeedResponse<Document> feedResponse1 = mock(FeedResponse.class);
+    FeedResponse<Document> feedResponse2 = mock(FeedResponse.class);
+    List<FeedResponse<Document>> feedResponseList = Arrays.asList(feedResponse1, feedResponse2);
     BlockingObservable<FeedResponse<Document>> mockBlockingObservable = mock(BlockingObservable.class);
     Observable<FeedResponse<Document>> mockObservable = mock(Observable.class);
     when(mockResponse.limit(anyInt())).thenReturn(mockObservable);
     when(mockObservable.toBlocking()).thenReturn(mockBlockingObservable);
-    when(mockBlockingObservable.single()).thenReturn(feedResponse);
-    when(feedResponse.getResults()).thenReturn(documentList);
-    Iterator<FeedResponse<Document>> iterator = mock(Iterator.class);
+    when(mockBlockingObservable.toIterable()).thenReturn(feedResponseList);
+    when(feedResponse1.getResults()).thenReturn(documentList.subList(0, documentList.size() / 2));
+    when(feedResponse2.getResults()).thenReturn(documentList.subList(documentList.size() / 2, documentList.size()));
   }
 
   /**

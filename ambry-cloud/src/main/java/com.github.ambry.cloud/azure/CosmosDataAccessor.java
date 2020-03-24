@@ -37,6 +37,7 @@ import com.microsoft.azure.cosmosdb.SqlParameterCollection;
 import com.microsoft.azure.cosmosdb.SqlQuerySpec;
 import com.microsoft.azure.cosmosdb.internal.HttpConstants;
 import com.microsoft.azure.cosmosdb.rx.AsyncDocumentClient;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -354,9 +355,12 @@ public class CosmosDataAccessor {
       changeFeedOptions.setRequestContinuation(requestContinuationToken);
     }
     try {
-      FeedResponse<Document> feedResponse = executeCosmosChangeFeedQuery(changeFeedOptions, timer);
-      feedResponse.getResults().stream().map(doc -> createMetadataFromDocument(doc)).forEach(changeFeed::add);
-      return feedResponse.getResponseContinuation();
+      Iterable<FeedResponse<Document>> feedResponseIterable = executeCosmosChangeFeedQuery(changeFeedOptions, timer);
+      for(FeedResponse<Document> feedResponse : feedResponseIterable) {
+        feedResponse.getResults().stream().map(doc -> createMetadataFromDocument(doc)).forEach(changeFeed::add);
+        requestContinuationToken = feedResponse.getResponseContinuation();
+      }
+      return requestContinuationToken;
     } catch (RuntimeException rex) {
       azureMetrics.changeFeedQueryFailureCount.inc();
       if (rex.getCause() instanceof DocumentClientException) {
@@ -435,7 +439,7 @@ public class CosmosDataAccessor {
    * @param timer the {@link Timer} to use to record query time (excluding waiting).
    * @return {@link FeedResponse} object representing the query response.
    */
-  private FeedResponse<Document> executeCosmosChangeFeedQuery(ChangeFeedOptions changeFeedOptions, Timer timer) {
+  private Iterable<FeedResponse<Document>> executeCosmosChangeFeedQuery(ChangeFeedOptions changeFeedOptions, Timer timer) {
     Timer.Context operationTimer = timer.time();
     try {
       // FIXME: Using single() for the observable returned by toBlocking() works for now. But if a high enough maxFeedSize
@@ -443,7 +447,7 @@ public class CosmosDataAccessor {
       return asyncDocumentClient.queryDocumentChangeFeed(cosmosCollectionLink, changeFeedOptions)
           .limit(1)
           .toBlocking()
-          .single();
+          .toIterable();
     } finally {
       operationTimer.stop();
     }
