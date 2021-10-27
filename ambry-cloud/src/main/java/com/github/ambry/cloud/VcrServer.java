@@ -29,6 +29,7 @@ import com.github.ambry.config.CloudConfig;
 import com.github.ambry.config.ClusterMapConfig;
 import com.github.ambry.config.ConnectionPoolConfig;
 import com.github.ambry.config.Http2ClientConfig;
+import com.github.ambry.config.NettyConfig;
 import com.github.ambry.config.NetworkConfig;
 import com.github.ambry.config.ReplicationConfig;
 import com.github.ambry.config.SSLConfig;
@@ -37,15 +38,20 @@ import com.github.ambry.config.StoreConfig;
 import com.github.ambry.config.VerifiableProperties;
 import com.github.ambry.network.BlockingChannelConnectionPool;
 import com.github.ambry.network.ConnectionPool;
+import com.github.ambry.network.NettyServerRequestResponseChannel;
 import com.github.ambry.network.NetworkServer;
 import com.github.ambry.network.Port;
 import com.github.ambry.network.PortType;
 import com.github.ambry.network.SocketServer;
 import com.github.ambry.network.http2.Http2BlockingChannelPool;
 import com.github.ambry.network.http2.Http2ClientMetrics;
+import com.github.ambry.network.http2.Http2ServerMetrics;
 import com.github.ambry.notification.NotificationSystem;
 import com.github.ambry.protocol.RequestHandlerPool;
 import com.github.ambry.replication.FindTokenHelper;
+import com.github.ambry.rest.NettyMetrics;
+import com.github.ambry.rest.NioServer;
+import com.github.ambry.rest.NioServerFactory;
 import com.github.ambry.store.StoreKeyConverterFactory;
 import com.github.ambry.store.StoreKeyFactory;
 import com.github.ambry.utils.SystemTime;
@@ -68,6 +74,7 @@ import static com.github.ambry.utils.Utils.*;
 public class VcrServer {
 
   private CountDownLatch shutdownLatch = new CountDownLatch(1);
+  private NioServer nettyHttp2Server;
   private NetworkServer networkServer = null;
   private ScheduledExecutorService scheduler = null;
   private VcrReplicationManager vcrReplicationManager = null;
@@ -207,6 +214,34 @@ public class VcrServer {
           networkServer.getRequestResponseChannel(), requests);
 
       networkServer.start();
+
+
+      // Start netty http2 server
+      if (currentNode.hasHttp2Port()) {
+        NettyConfig nettyConfig = new NettyConfig(properties);
+        NettyMetrics nettyMetrics = new NettyMetrics(registry);
+        Http2ServerMetrics http2ServerMetrics = new Http2ServerMetrics(registry);
+        Http2ClientConfig http2ClientConfig = new Http2ClientConfig(properties);
+
+        logger.info("Http2 port {} is enabled. Starting HTTP/2 service.", currentNode.getHttp2Port());
+        NettyServerRequestResponseChannel requestResponseChannel =
+            new NettyServerRequestResponseChannel(networkConfig.queuedMaxRequests, http2ServerMetrics);
+
+        AmbryServerRequests ambryServerRequestsForHttp2 =
+            new AmbryServerRequests(storageManager, requestResponseChannel, clusterMap, currentNode, registry, metrics,
+                findTokenHelper, notificationSystem, replicationManager, storeKeyFactory, serverConfig,
+                storeKeyConverterFactory, statsManager, clusterParticipants.get(0));
+        requestHandlerPoolForHttp2 =
+            new RequestHandlerPool(serverConfig.serverRequestHandlerNumOfThreads, requestResponseChannel,
+                ambryServerRequestsForHttp2);
+
+        NioServerFactory nioServerFactory =
+            new StorageServerNettyFactory(nodeId.getHttp2Port(), requestResponseChannel, sslFactory, nettyConfig,
+                http2ClientConfig, metrics, nettyMetrics, http2ServerMetrics, serverSecurityService);
+        nettyHttp2Server = nioServerFactory.getNioServer();
+        nettyHttp2Server.start();
+      }
+
 
       long processingTime = SystemTime.getInstance().milliseconds() - startTime;
       logger.info("VCR startup time in Ms {}", processingTime);
