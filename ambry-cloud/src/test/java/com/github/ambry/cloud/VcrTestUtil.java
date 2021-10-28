@@ -178,6 +178,7 @@ public class VcrTestUtil {
       props.putAll(vcrSSLProps);
       props.setProperty("clustermap.ssl.enabled.datacenters", datacenter);
       props.setProperty(CloudConfig.VCR_SSL_PORT, Integer.toString(vcrSslPort));
+      props.setProperty(CloudConfig.VCR_HTTP2_PORT, Integer.toString(vcrSslPort+10));
     }
     props.setProperty(CloudConfig.VCR_CLUSTER_NAME, vcrClusterName);
     props.setProperty(CloudConfig.VCR_CLUSTER_AGENTS_FACTORY_CLASS, HelixVcrClusterAgentsFactory.class.getName());

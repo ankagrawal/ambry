@@ -52,6 +52,9 @@ import com.github.ambry.replication.FindTokenHelper;
 import com.github.ambry.rest.NettyMetrics;
 import com.github.ambry.rest.NioServer;
 import com.github.ambry.rest.NioServerFactory;
+import com.github.ambry.server.ServerSecurityService;
+import com.github.ambry.server.ServerSecurityServiceFactory;
+import com.github.ambry.server.StorageServerNettyFactory;
 import com.github.ambry.store.StoreKeyConverterFactory;
 import com.github.ambry.store.StoreKeyFactory;
 import com.github.ambry.utils.SystemTime;
@@ -89,9 +92,11 @@ public class VcrServer {
   private final NotificationSystem notificationSystem;
   private final Function<MetricRegistry, JmxReporter> reporterFactory;
   private CloudDestinationFactory cloudDestinationFactory;
-  private VcrRequests requests;
   private RequestHandlerPool requestHandlerPool;
+  private RequestHandlerPool requestHandlerPoolForHttp2;
   private CloudDestination cloudDestination;
+  private ServerSecurityService serverSecurityService;
+  private ServerMetrics serverMetrics;
 
   /**
    * VcrServer constructor.
@@ -132,8 +137,15 @@ public class VcrServer {
   public void startup() throws InstantiationException {
     try {
       logger.info("starting");
+      ServerConfig serverConfig = new ServerConfig(properties);
+      ServerSecurityServiceFactory serverSecurityServiceFactory =
+          Utils.getObj(serverConfig.serverSecurityServiceFactory, properties, serverMetrics, registry);
+      serverSecurityService = serverSecurityServiceFactory.getServerSecurityService();
+
       clusterMap = clusterAgentsFactory.getClusterMap();
       logger.info("Initialized clusterMap");
+      registry = clusterMap.getMetricRegistry();
+      serverMetrics = new ServerMetrics(registry, VcrServer.class, VcrServer.class);
 
       logger.info("Setting up JMX.");
       long startTime = SystemTime.getInstance().milliseconds();
@@ -144,7 +156,6 @@ public class VcrServer {
       logger.info("creating configs");
       NetworkConfig networkConfig = new NetworkConfig(properties);
       StoreConfig storeConfig = new StoreConfig(properties);
-      ServerConfig serverConfig = new ServerConfig(properties);
       ReplicationConfig replicationConfig = new ReplicationConfig(properties);
       CloudConfig cloudConfig = new CloudConfig(properties);
       ConnectionPoolConfig connectionPoolConfig = new ConnectionPoolConfig(properties);
@@ -205,7 +216,7 @@ public class VcrServer {
 
       //todo fix enableDataPrefetch
       ServerMetrics serverMetrics = new ServerMetrics(registry, VcrRequests.class, VcrServer.class);
-      requests =
+      VcrRequests requests =
           new VcrRequests(cloudStorageManager, networkServer.getRequestResponseChannel(), clusterMap, currentNode,
               registry, serverMetrics, new FindTokenHelper(storeKeyFactory, replicationConfig), notificationSystem,
               vcrReplicationManager, storeKeyFactory, storeKeyConverterFactory);
@@ -215,33 +226,31 @@ public class VcrServer {
 
       networkServer.start();
 
-
       // Start netty http2 server
       if (currentNode.hasHttp2Port()) {
+        logger.info("Http2 port {} is enabled. Starting HTTP/2 service.", currentNode.getHttp2Port());
         NettyConfig nettyConfig = new NettyConfig(properties);
         NettyMetrics nettyMetrics = new NettyMetrics(registry);
         Http2ServerMetrics http2ServerMetrics = new Http2ServerMetrics(registry);
         Http2ClientConfig http2ClientConfig = new Http2ClientConfig(properties);
 
-        logger.info("Http2 port {} is enabled. Starting HTTP/2 service.", currentNode.getHttp2Port());
         NettyServerRequestResponseChannel requestResponseChannel =
             new NettyServerRequestResponseChannel(networkConfig.queuedMaxRequests, http2ServerMetrics);
 
-        AmbryServerRequests ambryServerRequestsForHttp2 =
-            new AmbryServerRequests(storageManager, requestResponseChannel, clusterMap, currentNode, registry, metrics,
-                findTokenHelper, notificationSystem, replicationManager, storeKeyFactory, serverConfig,
-                storeKeyConverterFactory, statsManager, clusterParticipants.get(0));
+        VcrRequests vcrRequestsForHttp2 =
+            new VcrRequests(cloudStorageManager, networkServer.getRequestResponseChannel(), clusterMap, currentNode,
+                registry, serverMetrics, new FindTokenHelper(storeKeyFactory, replicationConfig), notificationSystem,
+                vcrReplicationManager, storeKeyFactory, storeKeyConverterFactory);
         requestHandlerPoolForHttp2 =
             new RequestHandlerPool(serverConfig.serverRequestHandlerNumOfThreads, requestResponseChannel,
-                ambryServerRequestsForHttp2);
+                vcrRequestsForHttp2);
 
         NioServerFactory nioServerFactory =
-            new StorageServerNettyFactory(nodeId.getHttp2Port(), requestResponseChannel, sslFactory, nettyConfig,
-                http2ClientConfig, metrics, nettyMetrics, http2ServerMetrics, serverSecurityService);
+            new StorageServerNettyFactory(currentNode.getHttp2Port(), requestResponseChannel, sslFactory, nettyConfig,
+                http2ClientConfig, serverMetrics, nettyMetrics, http2ServerMetrics, serverSecurityService);
         nettyHttp2Server = nioServerFactory.getNioServer();
         nettyHttp2Server.start();
       }
-
 
       long processingTime = SystemTime.getInstance().milliseconds() - startTime;
       logger.info("VCR startup time in Ms {}", processingTime);
@@ -267,6 +276,12 @@ public class VcrServer {
       }
       if (networkServer != null) {
         networkServer.shutdown();
+      }
+      if (requestHandlerPoolForHttp2 != null) {
+        requestHandlerPoolForHttp2.shutdown();
+      }
+      if (nettyHttp2Server != null) {
+        nettyHttp2Server.shutdown();
       }
       if (vcrReplicationManager != null) {
         vcrReplicationManager.shutdown();

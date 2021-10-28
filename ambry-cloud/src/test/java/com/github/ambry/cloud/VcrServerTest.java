@@ -19,11 +19,14 @@ import com.codahale.metrics.jmx.JmxReporter;
 import com.codahale.metrics.jmx.ObjectNameFactory;
 import com.github.ambry.clustermap.MockClusterAgentsFactory;
 import com.github.ambry.clustermap.MockClusterMap;
+import com.github.ambry.commons.SSLFactory;
+import com.github.ambry.commons.TestSSLUtils;
 import com.github.ambry.config.CloudConfig;
 import com.github.ambry.config.VerifiableProperties;
 import com.github.ambry.notification.NotificationSystem;
 import com.github.ambry.utils.HelixControllerManager;
 import com.github.ambry.utils.TestUtils;
+import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Properties;
@@ -118,8 +121,18 @@ public class VcrServerTest {
   /**
    * @return {@link VerifiableProperties} to start a VCR with a static cluster.
    */
-  private VerifiableProperties getStaticClusterVcrProps() {
-    Properties props = VcrTestUtil.createVcrProperties("DC1", "vcrClusterName", "", 12300, 12400, null);
+  private VerifiableProperties getStaticClusterVcrProps() throws Exception{
+
+    Properties serverSSLProps = new Properties();
+    File trustStoreFile = File.createTempFile("truststore", ".jks");
+    TestSSLUtils.addSSLProperties(serverSSLProps, "DC1,DC2,DC3", SSLFactory.Mode.SERVER, trustStoreFile, "server");
+    TestSSLUtils.addHttp2Properties(serverSSLProps, SSLFactory.Mode.SERVER, true);
+
+
+    Properties props = VcrTestUtil.createVcrProperties("DC1", "vcrClusterName", "", 12300, 12400, serverSSLProps);
+
+
+
     props.setProperty(CloudConfig.VCR_ASSIGNED_PARTITIONS, "0,1");
     props.setProperty(CloudConfig.VCR_CLUSTER_AGENTS_FACTORY_CLASS, StaticVcrClusterAgentsFactory.class.getName());
     // Run this one with compaction disabled
