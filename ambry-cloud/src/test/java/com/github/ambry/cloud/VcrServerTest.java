@@ -104,7 +104,8 @@ public class VcrServerTest {
     TestUtils.ZkInfo zkInfo = new TestUtils.ZkInfo(TestUtils.getTempDir("helixVcr"), "DC1", (byte) 1, zkPort, true);
     HelixControllerManager helixControllerManager =
         VcrTestUtil.populateZkInfoAndStartController(zkConnectString, vcrClusterName, mockClusterMap);
-    Properties props = VcrTestUtil.createVcrProperties("DC1", vcrClusterName, zkConnectString, 12300, 12400, null);
+    Properties props = VcrTestUtil.createVcrProperties("DC1", vcrClusterName, zkConnectString, 12300, 12400, 12500,
+        null);
     CloudDestinationFactory cloudDestinationFactory = new LatchBasedInMemoryCloudDestinationFactory(
         new LatchBasedInMemoryCloudDestination(Collections.emptyList(), mockClusterMap));
     VerifiableProperties verifiableProperties = new VerifiableProperties(props);
@@ -127,12 +128,7 @@ public class VcrServerTest {
     File trustStoreFile = File.createTempFile("truststore", ".jks");
     TestSSLUtils.addSSLProperties(serverSSLProps, "DC1,DC2,DC3", SSLFactory.Mode.SERVER, trustStoreFile, "server");
     TestSSLUtils.addHttp2Properties(serverSSLProps, SSLFactory.Mode.SERVER, true);
-
-
-    Properties props = VcrTestUtil.createVcrProperties("DC1", "vcrClusterName", "", 12300, 12400, serverSSLProps);
-
-
-
+    Properties props = VcrTestUtil.createVcrProperties("DC1", "vcrClusterName", "", 12300, 12400, 12500, serverSSLProps);
     props.setProperty(CloudConfig.VCR_ASSIGNED_PARTITIONS, "0,1");
     props.setProperty(CloudConfig.VCR_CLUSTER_AGENTS_FACTORY_CLASS, StaticVcrClusterAgentsFactory.class.getName());
     // Run this one with compaction disabled
