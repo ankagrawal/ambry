@@ -88,9 +88,10 @@ public class VcrBackupTest {
   private HelixControllerManager helixControllerManager;
   private DataNodeId dataNode;
   private int numOfPartitions = 20;
+  private int blobSize = 10;
   private File trustStoreFile;
   private Properties serverSSLProps;
-  private SSLConfig clientSSLConfig;
+  private Properties clientSSLProps;
 
   /**
    * Constructor for {@link VcrBackupTest}.
@@ -132,20 +133,15 @@ public class VcrBackupTest {
         VcrTestUtil.populateZkInfoAndStartController(zkConnectString, vcrClusterName, mockCluster.getClusterMap(),
             vcrStateModelName);
 
-
-
-
     trustStoreFile = File.createTempFile("truststore", ".jks");
     serverSSLProps = new Properties();
     TestSSLUtils.addSSLProperties(serverSSLProps, "DC1,DC2,DC3", SSLFactory.Mode.SERVER, trustStoreFile, "server");
     TestSSLUtils.addHttp2Properties(serverSSLProps, SSLFactory.Mode.SERVER, true);
 
-
-    Properties clientSSLProps = new Properties();
+    clientSSLProps = new Properties();
     TestSSLUtils.addSSLProperties(clientSSLProps, "DC1,DC2,DC3", SSLFactory.Mode.CLIENT, trustStoreFile,
         "http2-blocking-channel-client");
     TestSSLUtils.addHttp2Properties(clientSSLProps, SSLFactory.Mode.CLIENT, true);
-    clientSSLConfig = new SSLConfig(new VerifiableProperties(clientSSLProps));
   }
 
   @After
@@ -180,6 +176,7 @@ public class VcrBackupTest {
 
     // Verify a blob by making a http2 request.
     MockClusterMap clusterMap = mockCluster.getClusterMap();
+    SSLConfig clientSSLConfig = new SSLConfig(new VerifiableProperties(clientSSLProps));
     ConnectedChannel channel = ServerTestUtil.getBlockingChannelBasedOnPortType(
         new Port(clusterMap.getDataNodes().get(0).getHttp2Port(), PortType.HTTP2), "localhost", null, clientSSLConfig);
     BlobId blobToVerify = blobIds.get(0);
@@ -188,15 +185,12 @@ public class VcrBackupTest {
     PartitionRequestInfo partitionRequestInfo = new PartitionRequestInfo(blobToVerify.getPartition(), idList);
     partitionRequestInfoList.add(partitionRequestInfo);
     GetRequest getRequest1 =
-        new GetRequest(1, "clientid2", MessageFormatFlags.BlobProperties, partitionRequestInfoList, GetOption.None);
+        new GetRequest(1, "clientid1", MessageFormatFlags.BlobProperties, partitionRequestInfoList, GetOption.None);
     DataInputStream stream = channel.sendAndReceive(getRequest1).getInputStream();
     GetResponse resp1 = GetResponse.readFrom(stream, clusterMap);
     try {
       BlobProperties propertyOutput = MessageFormatRecord.deserializeBlobProperties(resp1.getInputStream());
-      System.out.println(propertyOutput.getBlobSize());
-      System.out.println(propertyOutput.getServiceId());
-//      assertEquals(31870, propertyOutput.getBlobSize());
-//      assertEquals("serviceid1", propertyOutput.getServiceId());
+      assertEquals(blobSize, propertyOutput.getBlobSize());
       releaseNettyBufUnderneathStream(stream);
     } catch (MessageFormatException e) {
       fail();
@@ -494,7 +488,6 @@ public class VcrBackupTest {
    * @return list of blobs successfully sent.
    */
   private List<BlobId> sendBlobToDataNode(DataNodeId dataNode, int blobCount) throws Exception {
-    int blobSize = 10;
     int userMetaDataSize = 10;
     // Send blobs to DataNode
     byte[] userMetadata = new byte[userMetaDataSize];
