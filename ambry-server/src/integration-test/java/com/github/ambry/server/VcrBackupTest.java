@@ -22,7 +22,6 @@ import com.github.ambry.cloud.VcrServer;
 import com.github.ambry.cloud.VcrTestUtil;
 import com.github.ambry.clustermap.DataNodeId;
 import com.github.ambry.clustermap.MockClusterMap;
-import com.github.ambry.clustermap.MockPartitionId;
 import com.github.ambry.clustermap.PartitionId;
 import com.github.ambry.commons.BlobId;
 import com.github.ambry.commons.SSLFactory;
@@ -179,16 +178,14 @@ public class VcrBackupTest {
     assertTrue("Did not backup all blobs in 2 minutes",
         latchBasedInMemoryCloudDestination.awaitUpload(2, TimeUnit.MINUTES));
 
+    // Verify a blob by making a http2 request.
     MockClusterMap clusterMap = mockCluster.getClusterMap();
     ConnectedChannel channel = ServerTestUtil.getBlockingChannelBasedOnPortType(
         new Port(clusterMap.getDataNodes().get(0).getHttp2Port(), PortType.HTTP2), "localhost", null, clientSSLConfig);
-
-    ArrayList<BlobId> ids = new ArrayList<>();
-    MockPartitionId partition =
-        (MockPartitionId) clusterMap.getWritablePartitionIds(MockClusterMap.DEFAULT_PARTITION_CLASS).get(0);
-    ids.add(blobIds.get(0));
+    BlobId blobToVerify = blobIds.get(0);
+    ArrayList<BlobId> idList = new ArrayList<>(Arrays.asList(blobToVerify));
     ArrayList<PartitionRequestInfo> partitionRequestInfoList = new ArrayList<PartitionRequestInfo>();
-    PartitionRequestInfo partitionRequestInfo = new PartitionRequestInfo(partition, ids);
+    PartitionRequestInfo partitionRequestInfo = new PartitionRequestInfo(blobToVerify.getPartition(), idList);
     partitionRequestInfoList.add(partitionRequestInfo);
     GetRequest getRequest1 =
         new GetRequest(1, "clientid2", MessageFormatFlags.BlobProperties, partitionRequestInfoList, GetOption.None);

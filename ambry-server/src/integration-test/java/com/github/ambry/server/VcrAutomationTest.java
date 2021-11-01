@@ -110,8 +110,8 @@ public class VcrAutomationTest {
     Utils.writeJsonObjectToFile(testHardwareLayout.getHardwareLayout().toJSONObject(), hardwareLayoutPath);
     Utils.writeJsonObjectToFile(testPartitionLayout.getPartitionLayout().toJSONObject(), partitionLayoutPath);
 
-    Properties props = VcrTestUtil.createVcrProperties("DC0", vcrClusterName, zkConnectString, 12300, 12400, 12510,
-        null);
+    Properties props =
+        VcrTestUtil.createVcrProperties("DC0", vcrClusterName, zkConnectString, 12300, 12400, 12510, null);
     props.setProperty("clustermap.host.name", "localhost");
     props.setProperty("clustermap.port", "1100");
     props.setProperty("clustermap.cluster.name", clusterName);
