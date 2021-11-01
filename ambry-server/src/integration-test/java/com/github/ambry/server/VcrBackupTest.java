@@ -190,6 +190,7 @@ public class VcrBackupTest {
     GetResponse resp1 = GetResponse.readFrom(stream, clusterMap);
     try {
       BlobProperties propertyOutput = MessageFormatRecord.deserializeBlobProperties(resp1.getInputStream());
+      // Do a simple check
       assertEquals(blobSize, propertyOutput.getBlobSize());
       releaseNettyBufUnderneathStream(stream);
     } catch (MessageFormatException e) {
