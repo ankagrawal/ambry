@@ -54,7 +54,7 @@ import com.github.ambry.rest.NioServer;
 import com.github.ambry.rest.NioServerFactory;
 import com.github.ambry.server.ServerSecurityService;
 import com.github.ambry.server.ServerSecurityServiceFactory;
-import com.github.ambry.server.StorageServerNettyFactory;
+import com.github.ambry.rest.StorageServerNettyFactory;
 import com.github.ambry.store.StoreKeyConverterFactory;
 import com.github.ambry.store.StoreKeyFactory;
 import com.github.ambry.utils.SystemTime;
