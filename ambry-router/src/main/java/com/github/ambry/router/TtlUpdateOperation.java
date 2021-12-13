@@ -64,6 +64,8 @@ class TtlUpdateOperation {
   private final AtomicReference<Exception> operationException = new AtomicReference<Exception>();
   // Denotes whether the operation is complete.
   private boolean operationCompleted = false;
+  // Quota charger for this operation.
+  private final OperationQuotaCharger operationQuotaCharger;
 
   /**
    * Instantiates a {@link TtlUpdateOperation}.
@@ -117,6 +119,7 @@ class TtlUpdateOperation {
         new SimpleOperationTracker(routerConfig, RouterOperation.TtlUpdateOperation, blobId.getPartition(),
             originatingDcName, false, routerMetrics);
     this.quotaChargeCallback = quotaChargeCallback;
+    this.operationQuotaCharger = new OperationQuotaCharger(quotaChargeCallback, blobId, this.getClass().getSimpleName());
   }
 
   /**
@@ -146,7 +149,7 @@ class TtlUpdateOperation {
       TtlUpdateRequest ttlUpdateRequest = createTtlUpdateRequest();
       ttlUpdateRequestInfos.put(ttlUpdateRequest.getCorrelationId(),
           new TtlUpdateRequestInfo(time.milliseconds(), replica));
-      RequestInfo requestInfo = new RequestInfo(hostname, port, ttlUpdateRequest, replica, null);
+      RequestInfo requestInfo = new RequestInfo(hostname, port, ttlUpdateRequest, replica, operationQuotaCharger);
       requestRegistrationCallback.registerRequestToSend(this, requestInfo);
       replicaIterator.remove();
       if (RouterUtils.isRemoteReplica(routerConfig, replica)) {
