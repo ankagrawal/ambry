@@ -368,9 +368,9 @@ public class UndeleteOperation {
       }
       if (quotaChargeCallback != null) {
         try {
-          quotaChargeCallback.charge();
-        } catch (QuotaException quotaException) {
-          LOGGER.info("Exception {} while charging quota for undelete operation", quotaException.toString());
+          quotaChargeCallback.checkAndCharge();
+        } catch (RouterException routerException) {
+          LOGGER.info("Exception {} while charging quota for undelete operation", routerException.toString());
         }
       }
       operationCompleted = true;

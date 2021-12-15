@@ -99,7 +99,7 @@ class GetBlobOperation extends GetOperation {
   private final BlobIdFactory blobIdFactory;
   // To find the GetChunk to hand over the response quickly.
   private final Map<Integer, GetChunk> correlationIdToGetChunk = new HashMap<>();
-  // Callback to charge against quota for each chunk that's fetched.
+  // Callback to chargeIfUsageWithinQuota against quota for each chunk that's fetched.
   private final QuotaChargeCallback quotaChargeCallback;
   // Associated with all data chunks in the case of composite blobs. Only a fixed number of these are initialized.
   // Each of these is initialized with the information required to fetch a data chunk and is responsible for
@@ -616,8 +616,8 @@ class GetBlobOperation extends GetOperation {
     private long chunkSize;
     // whether the operation on the current chunk has completed.
     private boolean chunkCompleted;
-    // whether the quota has been charged for chunk.
-    private boolean isCharged;
+    // whether the quota is already charged for this chunk.
+    protected boolean isCharged;
 
     /**
      * Construct a GetChunk
@@ -743,26 +743,33 @@ class GetBlobOperation extends GetOperation {
     }
 
     @Override
-    public boolean charge() {
+    public boolean checkAndCharge() {
       if (quotaChargeCallback == null || isCharged) {
         return true;
       }
       try {
-        quotaChargeCallback.charge(chunkSize);
-        isCharged = true;
-      } catch (QuotaException quotaException) {
-        logger.warn(String.format("Quota charging failed in GetBlobOperation for blob {} due to {} ", blobId.toString(),
-            quotaException.toString()));
+        isCharged = quotaChargeCallback.checkAndCharge(chunkSize);
+      } catch (Exception ex) {
+        logger.warn("Could not charge quota due to {}", ex.toString());
+        // In case of exception we don't set isCharged but let the request go through.
+        return true;
       }
       return isCharged;
     }
 
     @Override
-    public boolean quotaExceedAllowed() {
+    public boolean chargeIfQuotaExceedAllowed() {
       if(quotaChargeCallback == null) {
         return true;
       }
-      return quotaChargeCallback.quotaExceedAllowed();
+      try {
+        isCharged = quotaChargeCallback.chargeIfQuotaExceedAllowed(chunkSize);
+      } catch (Exception ex) {
+        logger.warn("Could not charge quota due to {}", ex.toString());
+        // In case of exception we don't set isCharged but let the request go through.
+        return true;
+      }
+      return isCharged;
     }
 
     @Override
@@ -910,20 +917,6 @@ class GetBlobOperation extends GetOperation {
       }
       if (chunkCompleted) {
         if (state != ChunkState.Complete && quotaChargeCallback != null && chunkException == null) {
-          try {
-            if (chunkSize != -1) {
-              quotaChargeCallback.charge(chunkSize);
-            } else {
-              if (this instanceof FirstGetChunk && ((FirstGetChunk) this).blobType == BlobType.DataBlob
-                  && blobInfo != null) {
-                quotaChargeCallback.charge(blobInfo.getBlobProperties().getBlobSize());
-              }
-              // other cases mean that either this was a metadata blob, or there was an error.
-            }
-          } catch (QuotaException quotaException) {
-            logger.info("Exception {} occurred during the quota charge event of blob {}", quotaException,
-                blobId.getID());
-          }
         }
         setOperationException(chunkException);
         state = ChunkState.Complete;

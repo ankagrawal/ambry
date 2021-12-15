@@ -89,9 +89,9 @@ class BatchOperationCallbackTracker {
     if (completed.compareAndSet(false, true)) {
       if (quotaChargeCallback != null) {
         try {
-          quotaChargeCallback.charge();
-        } catch (QuotaException quotaException) {
-          LOGGER.info("Exception {} while charging quota for ttl operation", quotaException.toString());
+          quotaChargeCallback.checkAndCharge();
+        } catch (RouterException rEx) {
+          LOGGER.info("Exception {} while charging quota for ttl operation", rEx.toString());
         }
       }
       NonBlockingRouter.completeOperation(futureResult, callback, null, e, false);

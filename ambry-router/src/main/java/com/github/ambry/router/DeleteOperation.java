@@ -315,10 +315,9 @@ class DeleteOperation {
       }
       if (quotaChargeCallback != null) {
         try {
-          quotaChargeCallback.charge();
-        } catch (QuotaException quotaException) {
-          logger.error("Exception  {} in quota charge event listener during delete operation",
-              quotaException.toString());
+          quotaChargeCallback.checkAndCharge();
+        } catch (RouterException routerException) {
+          logger.error("Exception  {} in quota chargeIfUsageWithinQuota event listener during delete operation", routerException.toString());
         }
       }
       operationCompleted = true;
