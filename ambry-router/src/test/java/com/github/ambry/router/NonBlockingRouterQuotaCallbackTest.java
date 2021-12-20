@@ -321,7 +321,7 @@ public class NonBlockingRouterQuotaCallbackTest extends NonBlockingRouterTestBas
 
     @Override
     public boolean chargeIfUsageWithinQuota(RestRequest restRequest, BlobInfo blobInfo,
-        Map<QuotaName, Double> requestCostMap) throws RestServiceException {
+        Map<QuotaName, Double> requestCostMap) throws QuotaException {
       boolean charged = super.chargeIfUsageWithinQuota(restRequest, blobInfo, requestCostMap);
       if (charged) {
         chargeCalledCount.incrementAndGet();
