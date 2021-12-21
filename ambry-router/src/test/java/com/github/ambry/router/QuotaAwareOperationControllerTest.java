@@ -206,8 +206,8 @@ public class QuotaAwareOperationControllerTest {
     /**
      * Constructor for {@link TestChargeable}.
      * @param checkOutput output of check method.
-     * @param chargeOutput output of chargeIfUsageWithinQuota method.
-     * @param quotaExceedAllowed output of chargeIfQuotaExceedAllowed method.
+     * @param chargeOutput output of charge method.
+     * @param quotaExceedAllowed output of quotaExceedAllowed method.
      * @param quotaResource output of getQuotaResource method.
      * @param quotaMethod output of the getQuotaMethod method.
      */
@@ -223,8 +223,8 @@ public class QuotaAwareOperationControllerTest {
     /**
      * Constructor for {@link TestChargeable}.
      * @param checkOutputs {@link List} representing the sequence of outputs of check method.
-     * @param chargeOutput output of chargeIfUsageWithinQuota method.
-     * @param quotaExceedAllowed output of chargeIfQuotaExceedAllowed method.
+     * @param chargeOutput output of charge method.
+     * @param quotaExceedAllowed output of quotaExceedAllowed method.
      * @param quotaResource output of getQuotaResource method.
      * @param quotaMethods {@link List} of {@link QuotaMethod}s representing the sequence of output of get quota method calls.
      */
@@ -272,13 +272,13 @@ public class QuotaAwareOperationControllerTest {
     /**
      * Verify that the interface methods have been called expected number of times.
      * @param numCheckCalls expected number of check calls.
-     * @param numChargeCalls expected number of chargeIfUsageWithinQuota calls.
-     * @param numQuotaExceedCalls expected number of chargeIfQuotaExceedAllowed calls.
+     * @param numChargeCalls expected number of charge calls.
+     * @param numQuotaExceedCalls expected number of quotaExceedAllowed calls.
      * @param numGetQuotaResourceCalls expected number of getQuotaResource calls.
      */
     public void verifyCalls(int numCheckCalls, int numChargeCalls, int numQuotaExceedCalls,
         int numGetQuotaResourceCalls) {
-      assertEquals("Invalid chargeIfUsageWithinQuota calls", numChargeCalls, this.numChargeCalls);
+      assertEquals("Invalid charge calls", numChargeCalls, this.numChargeCalls);
       assertEquals("Invalid check calls", numCheckCalls, this.numCheckCalls);
       assertEquals("Invalid quotaExceeded calls", numQuotaExceedCalls, this.numQuotaExceedCalls);
       assertEquals("Invalid getQuotaResource calls", numGetQuotaResourceCalls, this.numGetQuotaResourceCalls);

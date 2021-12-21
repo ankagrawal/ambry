@@ -99,7 +99,7 @@ class GetBlobOperation extends GetOperation {
   private final BlobIdFactory blobIdFactory;
   // To find the GetChunk to hand over the response quickly.
   private final Map<Integer, GetChunk> correlationIdToGetChunk = new HashMap<>();
-  // Callback to chargeIfUsageWithinQuota against quota for each chunk that's fetched.
+  // Callback to charge against quota for each chunk that's fetched.
   private final QuotaChargeCallback quotaChargeCallback;
   // Associated with all data chunks in the case of composite blobs. Only a fixed number of these are initialized.
   // Each of these is initialized with the information required to fetch a data chunk and is responsible for
@@ -957,6 +957,20 @@ class GetBlobOperation extends GetOperation {
       }
       if (chunkCompleted) {
         if (state != ChunkState.Complete && quotaChargeCallback != null && chunkException == null) {
+          try {
+            if (chunkSize != -1) {
+              quotaChargeCallback.checkAndCharge(chunkSize);
+            } else {
+              if (this instanceof FirstGetChunk && ((FirstGetChunk) this).blobType == BlobType.DataBlob
+                  && blobInfo != null) {
+                quotaChargeCallback.checkAndCharge(blobInfo.getBlobProperties().getBlobSize());
+              }
+              // other cases mean that either this was a metadata blob, or there was an error.
+            }
+          } catch (QuotaException quotaException) {
+            logger.info("Exception {} occurred during the quota charge event of blob {}", quotaException,
+                blobId.getID());
+          }
         }
         setOperationException(chunkException);
         state = ChunkState.Complete;
