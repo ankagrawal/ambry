@@ -23,6 +23,7 @@ import com.github.ambry.config.QuotaConfig;
 import com.github.ambry.messageformat.BlobInfo;
 import com.github.ambry.rest.RestRequest;
 import com.github.ambry.utils.Utils;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.WeakHashMap;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -39,14 +40,15 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * {@link QuotaManager} implementation to handle all the quota and quota enforcement for Ambry.
+ * A thread-safe {@link QuotaManager} implementation to handle all the quota and quota enforcement for Ambry.
  */
 public class AmbryQuotaManager implements QuotaManager {
   private static final Logger logger = LoggerFactory.getLogger(AmbryQuotaManager.class);
-  private final Set<QuotaEnforcer> requestQuotaEnforcers;
+  private final Set<QuotaEnforcer> quotaEnforcers;
   private final ThrottlePolicy throttlePolicy;
   private final QuotaConfig quotaConfig;
   private final QuotaMetrics quotaMetrics;
+  private final QuotaResourceMonitorProvider quotaResourceMonitorProvider;
   private volatile QuotaMode quotaMode;
 
   /**
@@ -64,9 +66,9 @@ public class AmbryQuotaManager implements QuotaManager {
         parseQuotaEnforcerAndSourceInfo(quotaConfig.requestQuotaEnforcerSourcePairInfoJson);
     Map<String, QuotaSource> quotaSourceObjectMap =
         buildQuotaSources(quotaEnforcerSourceMap.values(), quotaConfig, accountService);
-    requestQuotaEnforcers = new HashSet<>();
+    quotaEnforcers = new HashSet<>();
     for (String quotaEnforcerFactory : quotaEnforcerSourceMap.keySet()) {
-      requestQuotaEnforcers.add(((QuotaEnforcerFactory) Utils.getObj(quotaEnforcerFactory, quotaConfig,
+      quotaEnforcers.add(((QuotaEnforcerFactory) Utils.getObj(quotaEnforcerFactory, quotaConfig,
           quotaSourceObjectMap.get(quotaEnforcerSourceMap.get(quotaEnforcerFactory)),
           accountStatsStore)).getRequestQuotaEnforcer());
     }
@@ -74,6 +76,7 @@ public class AmbryQuotaManager implements QuotaManager {
     this.quotaConfig = quotaConfig;
     this.quotaMetrics = new QuotaMetrics(metricRegistry);
     this.quotaMode = quotaConfig.throttlingMode;
+    this.quotaResourceMonitorProvider = new QuotaResourceMonitorProvider();
     accountService.addAccountUpdateConsumer(this::onAccountUpdateNotification);
   }
 
@@ -81,7 +84,7 @@ public class AmbryQuotaManager implements QuotaManager {
   public void init() throws InstantiationException {
     Timer.Context timer = quotaMetrics.quotaManagerInitTime.time();
     try {
-      for (QuotaEnforcer quotaEnforcer : requestQuotaEnforcers) {
+      for (QuotaEnforcer quotaEnforcer : quotaEnforcers) {
         quotaEnforcer.init();
       }
     } catch (Exception e) {
@@ -98,51 +101,123 @@ public class AmbryQuotaManager implements QuotaManager {
 
   @Override
   public ThrottlingRecommendation getThrottleRecommendation(RestRequest restRequest) {
-    if (requestQuotaEnforcers.isEmpty()) {
+    if (quotaEnforcers.isEmpty()) {
       return null;
     }
-    ThrottlingRecommendation throttlingRecommendation;
+    ThrottlingRecommendation throttlingRecommendation = null;
     Timer.Context timer = quotaMetrics.quotaEnforcementTime.time();
+    List<QuotaRecommendation> quotaRecommendations = new ArrayList<>();
     try {
-      List<QuotaRecommendation> quotaRecommendations = requestQuotaEnforcers.stream()
-          .map(quotaEnforcer -> quotaEnforcer.recommend(restRequest))
-          .filter(Objects::nonNull)
-          .collect(Collectors.toList());
-      if (quotaRecommendations.size() == 0) {
-        quotaMetrics.quotaNotEnforcedCount.inc();
+      for (QuotaEnforcer quotaEnforcer : quotaEnforcers) {
+        QuotaRecommendation quotaRecommendation = quotaEnforcer.recommend(restRequest);
+        if (quotaRecommendation != null) {
+          quotaRecommendations.add(quotaRecommendation);
+        }
       }
-      throttlingRecommendation = throttlePolicy.recommend(quotaRecommendations);
-      if (throttlingRecommendation.shouldThrottle()) {
-        quotaMetrics.quotaExceededCount.inc();
-      }
-    } finally {
-      timer.stop();
+    } catch (QuotaException quotaException) {
+      logger.warn("Failed during getThrottleRecommendation with exception {}", quotaException.getMessage());
     }
+    if (quotaRecommendations.size() == 0) {
+      quotaMetrics.quotaNotEnforcedCount.inc();
+    }
+    throttlingRecommendation = throttlePolicy.recommend(quotaRecommendations);
+    if (throttlingRecommendation.shouldThrottle()) {
+      quotaMetrics.quotaExceededCount.inc();
+    }
+    timer.stop();
     return throttlingRecommendation;
   }
 
   @Override
   public ThrottlingRecommendation charge(RestRequest restRequest, BlobInfo blobInfo,
       Map<QuotaName, Double> requestCostMap) {
-    if (requestQuotaEnforcers.isEmpty()) {
+    if (quotaEnforcers.isEmpty()) {
       return null;
     }
     ThrottlingRecommendation throttlingRecommendation;
     Timer.Context timer = quotaMetrics.quotaChargeTime.time();
+    List<QuotaRecommendation> recommendations = new ArrayList<>();
     try {
-      throttlingRecommendation = throttlePolicy.recommend(requestQuotaEnforcers.stream()
-          .map(quotaEnforcer -> quotaEnforcer.chargeAndRecommend(restRequest, blobInfo, requestCostMap))
-          .filter(Objects::nonNull)
-          .collect(Collectors.toList()));
-    } finally {
-      timer.stop();
+      for (QuotaEnforcer quotaEnforcer : quotaEnforcers) {
+        if (quotaEnforcer.chargeAndRecommend(restRequest, blobInfo, requestCostMap) != null) {
+          recommendations.add(quotaEnforcer.chargeAndRecommend(restRequest, blobInfo, requestCostMap));
+        }
+      }
+    } catch (QuotaException quotaException) {
+      logger.warn("Failed during charge due to exception {}", quotaException);
     }
+    throttlingRecommendation = throttlePolicy.recommend(recommendations);
+    timer.stop();
     return throttlingRecommendation;
   }
 
   @Override
+  public boolean chargeIfQuotaExceedAllowed(RestRequest restRequest, BlobInfo blobInfo,
+      Map<QuotaName, Double> requestCostMap) throws QuotaException {
+    if (quotaEnforcers.isEmpty()) {
+      // No enforcers means nothing is being enforced.
+      return true;
+    }
+    boolean isAnyExceedAllowed = false;
+    // TODO This synchronization block needs performance check as it has the potential to make OperationControllers synchronized.
+    synchronized (this) {
+      Timer.Context timer = quotaMetrics.quotaEnforcementTime.time();
+      try {
+        for (QuotaEnforcer quotaEnforcer : quotaEnforcers) {
+          boolean quotaExceedAllowed = quotaEnforcer.isQuotaExceedAllowed(restRequest);
+          if (!quotaExceedAllowed && quotaEnforcer.recommend(restRequest).shouldThrottle()) {
+            // If the resource should be throttled on a quota for which exceed is not allowed, then quota exceed cannot be allowed for the request.
+            return false;
+          }
+          if (quotaExceedAllowed) {
+            isAnyExceedAllowed = true;
+          }
+        }
+        if (isAnyExceedAllowed) {
+          quotaMetrics.quotaExceedAllowedCount.inc();
+          chargeQuotaUsage(restRequest, blobInfo, requestCostMap);
+        }
+        return isAnyExceedAllowed;
+      } finally {
+        timer.stop();
+      }
+    }
+  }
+
+  @Override
+  public boolean chargeIfUsageWithinQuota(RestRequest restRequest, BlobInfo blobInfo,
+      Map<QuotaName, Double> requestCostMap) throws QuotaException {
+    if (quotaEnforcers.isEmpty()) {
+      // If there are no enforcers that means quota is not enforced, which is treated as usage within quota.
+      return true;
+    }
+    QuotaResource quotaResource;
+    try {
+      quotaResource = QuotaUtils.getQuotaResource(restRequest);
+    } catch (QuotaException qEx) {
+      logger.error("Could not get quota resource for blob %s during checkAndCharge attempt. No charging will be done.");
+      // If there is error in quota processing we treat it as usage within quota.
+      throw qEx;
+    }
+    ThrottlingRecommendation throttlingRecommendation;
+    synchronized (quotaResourceMonitorProvider.getQuotaResourceMonitor(quotaResource)) {
+      Timer.Context timer = quotaMetrics.quotaChargeTime.time();
+      try {
+        throttlingRecommendation = getThrottleRecommendation(restRequest);
+        if (throttlingRecommendation.shouldThrottle()) {
+          return false;
+        }
+        chargeQuotaUsage(restRequest, blobInfo, requestCostMap);
+      } finally {
+        timer.stop();
+      }
+    }
+    return true;
+  }
+
+  @Override
   public void shutdown() {
-    for (QuotaEnforcer quotaEnforcer : requestQuotaEnforcers) {
+    for (QuotaEnforcer quotaEnforcer : quotaEnforcers) {
       quotaEnforcer.shutdown();
     }
   }
@@ -153,13 +228,13 @@ public class AmbryQuotaManager implements QuotaManager {
   }
 
   @Override
-  public void setQuotaMode(QuotaMode mode) {
-    this.quotaMode = mode;
+  public QuotaMode getQuotaMode() {
+    return quotaMode;
   }
 
   @Override
-  public QuotaMode getQuotaMode() {
-    return quotaMode;
+  public void setQuotaMode(QuotaMode mode) {
+    this.quotaMode = mode;
   }
 
   /**
@@ -177,10 +252,24 @@ public class AmbryQuotaManager implements QuotaManager {
             .forEach(container -> updatedQuotaResources.add(QuotaResource.fromContainer(container)));
       }
     });
-    requestQuotaEnforcers.stream()
+    quotaEnforcers.stream()
         .map(QuotaEnforcer::getQuotaSource)
         .filter(Objects::nonNull)
         .forEach(quotaSource -> quotaSource.updateNewQuotaResources(updatedQuotaResources));
+  }
+
+  /**
+   * Charge the specified {@code requestCostMap} for the {@link RestRequest} for the blob with specified {@link BlobInfo}.
+   * @param restRequest {@link RestRequest} for which usage should be charged.
+   * @param blobInfo The {@link BlobInfo} of the blob in the restRequest.
+   * @param requestCostMap {@link Map} of {@link QuotaName} to usage to be charged.
+   * @throws QuotaException in case of any exception.
+   */
+  private void chargeQuotaUsage(RestRequest restRequest, BlobInfo blobInfo, Map<QuotaName, Double> requestCostMap)
+      throws QuotaException {
+    for (QuotaEnforcer quotaEnforcer : quotaEnforcers) {
+      quotaEnforcer.chargeAndRecommend(restRequest, blobInfo, requestCostMap);
+    }
   }
 
   /**
@@ -225,10 +314,33 @@ public class AmbryQuotaManager implements QuotaManager {
   }
 
   /**
+   * Class to get {@link Object} that can act as monitor for {@link QuotaResource} objects that represent the same quota resource.
+   */
+  private static class QuotaResourceMonitorProvider {
+    // Weak hash map will recycle the entries if they aren't referenced.
+    private final WeakHashMap<String, Object> quotaResourceMutextMap = new WeakHashMap<>();
+
+    /**
+     * Method to get an {@link Object} that can act as monitor for all {@link QuotaResource} objects representing the same quota resource.
+     * @param quotaResource the {@link QuotaResource} object.
+     * @return Object as monitor.
+     */
+    synchronized Object getQuotaResourceMonitor(QuotaResource quotaResource) {
+      String quotaResourceId = quotaResource.getResourceId();
+      if (!quotaResourceMutextMap.containsKey(quotaResourceId)) {
+        Object monitor = new Object();
+        quotaResourceMutextMap.put(quotaResourceId, monitor);
+      }
+      return quotaResourceMutextMap.get(quotaResourceId);
+    }
+  }
+
+  /**
    * Metrics class to capture metrics for user quota enforcement.
    */
   private static class QuotaMetrics {
     public final Counter quotaExceededCount;
+    public final Counter quotaExceedAllowedCount;
     public final Timer quotaEnforcementTime;
     public final Counter quotaNotEnforcedCount;
     public final Timer quotaManagerInitTime;
@@ -240,6 +352,8 @@ public class AmbryQuotaManager implements QuotaManager {
      */
     public QuotaMetrics(MetricRegistry metricRegistry) {
       quotaExceededCount = metricRegistry.counter(MetricRegistry.name(QuotaMetrics.class, "QuotaExceededCount"));
+      quotaExceedAllowedCount =
+          metricRegistry.counter(MetricRegistry.name(QuotaMetrics.class, "QuotaExceedAllowedCount"));
       quotaEnforcementTime = metricRegistry.timer(MetricRegistry.name(QuotaMetrics.class, "QuotaEnforcementTime"));
       quotaNotEnforcedCount = metricRegistry.counter(MetricRegistry.name(QuotaMetrics.class, "QuotaNotEnforcedCount"));
       quotaManagerInitTime = metricRegistry.timer(MetricRegistry.name(QuotaMetrics.class, "QuotaManagerInitTime"));

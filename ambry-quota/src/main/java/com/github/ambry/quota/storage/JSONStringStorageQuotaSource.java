@@ -25,11 +25,15 @@ import com.github.ambry.account.Account;
 import com.github.ambry.account.AccountService;
 import com.github.ambry.account.Container;
 import com.github.ambry.config.StorageQuotaConfig;
+import com.github.ambry.messageformat.BlobInfo;
 import com.github.ambry.quota.Quota;
+import com.github.ambry.quota.QuotaMethod;
 import com.github.ambry.quota.QuotaName;
+import com.github.ambry.quota.QuotaRecommendation;
 import com.github.ambry.quota.QuotaResource;
 import com.github.ambry.quota.QuotaResourceType;
 import com.github.ambry.quota.QuotaSource;
+import com.github.ambry.rest.RestRequest;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
@@ -123,6 +127,12 @@ public class JSONStringStorageQuotaSource implements QuotaSource, StorageQuotaEn
     return accountService;
   }
 
+  @Override
+  public boolean isQuotaExceedAllowed(QuotaMethod quotaMethod) {
+    // quota exceed is never allowed for storage quota.
+    return false;
+  }
+
   /**
    * A helper class to represent a number or a map of string to number. This is used in deserializing json string from
    * configuration for account/container quota.
@@ -187,4 +197,3 @@ public class JSONStringStorageQuotaSource implements QuotaSource, StorageQuotaEn
     }
   }
 }
-

@@ -14,6 +14,7 @@
 package com.github.ambry.quota;
 
 import com.github.ambry.rest.RestRequest;
+import com.github.ambry.rest.RestServiceErrorCode;
 import com.github.ambry.rest.RestServiceException;
 import com.github.ambry.router.RouterErrorCode;
 import com.github.ambry.router.RouterException;
@@ -82,7 +83,11 @@ public interface QuotaChargeCallback {
 
       @Override
       public QuotaResource getQuotaResource() throws RestServiceException {
-        return QuotaUtils.getQuotaResourceId(restRequest);
+        try {
+          return QuotaUtils.getQuotaResource(restRequest);
+        } catch (QuotaException quotaException) {
+          throw new RestServiceException(quotaException.getMessage(), RestServiceErrorCode.InternalServerError);
+        }
       }
 
       @Override

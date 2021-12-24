@@ -118,7 +118,7 @@ public class StorageQuotaEnforcer implements QuotaEnforcer {
       return NO_QUOTA_VALUE_RECOMMENDATION;
     }
     if (!requestCostMap.containsKey(QuotaName.STORAGE_IN_GB)) {
-      // No cost for the desired QuotaName, then just call recommend
+      // No cost for the desired QuotaName, then just call getResourceRecommendation
       return recommend(restRequest);
     }
 
@@ -135,6 +135,12 @@ public class StorageQuotaEnforcer implements QuotaEnforcer {
     }
     Pair<Long, Long> pair = getQuotaAndUsage(restRequest);
     return recommendBasedOnQuotaAndUsage(pair);
+  }
+
+  @Override
+  public boolean isQuotaExceedAllowed(RestRequest restRequest) {
+    // Exceeding storage quota limit is not allowed.
+    return false;
   }
 
   /**
@@ -268,7 +274,7 @@ public class StorageQuotaEnforcer implements QuotaEnforcer {
    * {@code restRequest}, then this is a no-op. If there is no quota found for the account/container, then this is
    * a no-op. A {@link Pair} whose first element is quota and second element is the storage usage after charge.
    * @param restRequest the {@link RestRequest} that carries account and container in the header.
-   * @param usage the usage to charge
+   * @param usage the usage to chargeIfUsageWithinQuota
    * @return A {@link Pair} whose first element is quota and second element is the storage usage after charge.
    */
   Pair<Long, Long> charge(RestRequest restRequest, long usage) {

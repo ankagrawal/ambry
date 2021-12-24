@@ -19,8 +19,11 @@ import com.github.ambry.frontend.Operations;
 import com.github.ambry.rest.RequestPath;
 import com.github.ambry.rest.RestMethod;
 import com.github.ambry.rest.RestRequest;
+import com.github.ambry.rest.RestServiceErrorCode;
 import com.github.ambry.rest.RestServiceException;
 import com.github.ambry.rest.RestUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static com.github.ambry.rest.RestUtils.InternalKeys.*;
 
@@ -29,6 +32,7 @@ import static com.github.ambry.rest.RestUtils.InternalKeys.*;
  * Common utility functions that can be used across implementations of Quota interfaces.
  */
 public class QuotaUtils {
+  private static final Logger LOGGER = LoggerFactory.getLogger(QuotaUtils.class);
 
   /**
    * Returns checks if user request quota should be applied to the request.
@@ -49,15 +53,20 @@ public class QuotaUtils {
    *
    * @param restRequest {@link RestRequest} object.
    * @return QuotaResource extracted from headers of {@link RestRequest}.
-   * @throws RestServiceException if appropriate headers aren't found in the {@link RestRequest}.
+   * @throws QuotaException if appropriate headers aren't found in the {@link RestRequest}.
    */
-  public static QuotaResource getQuotaResourceId(RestRequest restRequest) throws RestServiceException {
-    Account account = RestUtils.getAccountFromArgs(restRequest.getArgs());
-    if (account.getQuotaResourceType() == QuotaResourceType.ACCOUNT) {
-      return QuotaResource.fromAccountId(account.getId());
-    } else {
-      Container container = RestUtils.getContainerFromArgs(restRequest.getArgs());
-      return QuotaResource.fromContainerId(account.getId(), container.getId());
+  public static QuotaResource getQuotaResource(RestRequest restRequest) throws QuotaException {
+    try {
+      Account account = RestUtils.getAccountFromArgs(restRequest.getArgs());
+      if (account.getQuotaResourceType() == QuotaResourceType.ACCOUNT) {
+        return QuotaResource.fromAccountId(account.getId());
+      } else {
+        Container container = RestUtils.getContainerFromArgs(restRequest.getArgs());
+        return QuotaResource.fromContainerId(account.getId(), container.getId());
+      }
+    } catch (RestServiceException rEx) {
+      LOGGER.error("Could not get quota resource for request.");
+      throw new QuotaException("Could not get quota resource for request.", false);
     }
   }
 
@@ -75,7 +84,7 @@ public class QuotaUtils {
   /**
    * @return {@code true} if the request is a read request. {@code false} otherwise.
    */
-  private static boolean isReadRequest(RestRequest restRequest) {
+  public static boolean isReadRequest(RestRequest restRequest) {
     switch (restRequest.getRestMethod()) {
       case GET:
       case OPTIONS:
@@ -84,5 +93,12 @@ public class QuotaUtils {
       default:
         return false;
     }
+  }
+
+  /**
+   * @return QuotaName of the quota associated with {@link RestRequest}.
+   */
+  public static QuotaName getQuotaName(RestRequest restRequest) {
+    return isReadRequest(restRequest) ? QuotaName.READ_CAPACITY_UNIT : QuotaName.WRITE_CAPACITY_UNIT;
   }
 }

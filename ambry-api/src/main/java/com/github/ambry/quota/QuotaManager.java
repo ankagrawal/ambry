@@ -32,22 +32,53 @@ public interface QuotaManager {
   void init() throws InstantiationException;
 
   /**
-   * Computes the overall boolean recommendation to throttle a request or not for all the types of request quotas supported.
+   * Computes the recommendation to throttle a request or not based only on usage exceeding quota.
    * This method does not charge the requestCost against the quota.
    * @param restRequest {@link RestRequest} object.
-   * @return ThrottlingRecommendation object that captures the overall recommendation.
+   * @return ThrottlingRecommendation object that captures the recommendation.
    */
   ThrottlingRecommendation getThrottleRecommendation(RestRequest restRequest);
 
   /**
    * Charges the requestCost against the quota for the specified restRequest and blobInfo.
+   * Atomically charges the requestCost against the quota for the QuotaResource in the specified restRequest and blobInfo if quota
+   * exceed is allowed.
+   * This method does not charge the requestCost against the quota.
    * @param restRequest {@link RestRequest} object.
    * @param blobInfo {@link BlobInfo} object representing the blob characteristics using which request cost can be
    *                                 determined by enforcers.
    * @param requestCostMap {@link Map} of {@link QuotaName} to the cost incurred to handle the request.
    * @return ThrottlingRecommendation object that captures the overall recommendation.
+   * @return {@code true} if usage is allowed to exceed quota. {@code false} otherwise.
    */
   ThrottlingRecommendation charge(RestRequest restRequest, BlobInfo blobInfo, Map<QuotaName, Double> requestCostMap);
+
+  /**
+   * Atomically charges the requestCost against the quota for the QuotaResource in the specified restRequest and blobInfo if quota
+   * exceed is allowed.
+   * This method does not charge the requestCost against the quota.
+   * @param restRequest {@link RestRequest} object.
+   * @param blobInfo {@link BlobInfo} object representing the blob characteristics using which request cost can be
+   *                                 determined by enforcers.
+   * @param requestCostMap {@link Map} of {@link QuotaName} to the cost incurred to handle the request.
+   * @return {@code true} if usage is allowed to exceed quota. {@code false} otherwise.
+   * @throws QuotaException in case of any exception.
+   */
+  boolean chargeIfQuotaExceedAllowed(RestRequest restRequest, BlobInfo blobInfo, Map<QuotaName, Double> requestCostMap)
+      throws QuotaException;
+
+  /**
+   * Atomically charges the requestCost against the quota for the QuotaResource in the specified restRequest and blobInfo if usage
+   * is within quota.
+   * @param restRequest {@link RestRequest} object.
+   * @param blobInfo {@link BlobInfo} object representing the blob characteristics using which request cost can be
+   *                                 determined by enforcers.
+   * @param requestCostMap {@link Map} of {@link QuotaName} to the cost incurred to handle the request.
+   * @return {@code true} if the usage is within quota. {@code false} otherwise.
+   * @throws QuotaException in case of any exception.
+   */
+  boolean chargeIfUsageWithinQuota(RestRequest restRequest, BlobInfo blobInfo, Map<QuotaName, Double> requestCostMap)
+      throws QuotaException;
 
   /**
    * @return QuotaConfig object.
@@ -55,17 +86,17 @@ public interface QuotaManager {
   QuotaConfig getQuotaConfig();
 
   /**
-   * Set {@link QuotaMode} for {@link QuotaManager}.
-   * @param mode The mode to set
-   */
-  void setQuotaMode(QuotaMode mode);
-
-  /**
    * Use this method to get the {@link QuotaMode} rather than {@link QuotaConfig#throttlingMode} since the {@link QuotaMode}
    * might be updated by {@link #setQuotaMode}.
    * @return the {@link QuotaMode}. By default, it will return the {@link QuotaMode} from {@link QuotaConfig}.
    */
   QuotaMode getQuotaMode();
+
+  /**
+   * Set {@link QuotaMode} for {@link QuotaManager}.
+   * @param mode The mode to set
+   */
+  void setQuotaMode(QuotaMode mode);
 
   /**
    * Method to shutdown the {@link QuotaManager} and cleanup if required.

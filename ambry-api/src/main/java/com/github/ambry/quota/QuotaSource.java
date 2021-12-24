@@ -30,6 +30,11 @@ public interface QuotaSource {
   Quota getQuota(QuotaResource quotaResource, QuotaName quotaName);
 
   /**
+   * @return {@code true} is quota exceed is allowed for the specified {@link QuotaMethod}. {@code false} otherwise.
+   */
+  boolean isQuotaExceedAllowed(QuotaMethod quotaMethod);
+
+  /**
    * Update the quota for newly created {@link List} of {@link QuotaResource}s.
    * @param quotaResources {@link List} of new created {@link QuotaResource}s.
    */

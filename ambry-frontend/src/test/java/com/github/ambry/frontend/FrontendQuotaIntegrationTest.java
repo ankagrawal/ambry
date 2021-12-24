@@ -33,6 +33,7 @@ import com.github.ambry.config.SSLConfig;
 import com.github.ambry.config.VerifiableProperties;
 import com.github.ambry.quota.QuotaMode;
 import com.github.ambry.quota.QuotaName;
+import com.github.ambry.quota.QuotaResourceType;
 import com.github.ambry.rest.NettyClient;
 import com.github.ambry.rest.RestServer;
 import com.github.ambry.rest.RestServiceException;
@@ -60,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
@@ -111,12 +111,24 @@ public class FrontendQuotaIntegrationTest extends FrontendIntegrationTestBase {
   /**
    * Builds properties required to start a {@link RestServer} as an Ambry frontend server.
    * @param trustStoreFile the trust store file to add certificates to for SSL testing.
+   * @param isRequestQuotaEnabled flag to specify if request quota is enabled.
+   * @param quotaMode {@link QuotaMode} object.
+   * @param account {@link Account} for which quota needs to be specified.
+   * @param throttleRequest flag to indicate if the {@link com.github.ambry.quota.QuotaManager} should throttle request.
    * @return a {@link VerifiableProperties} with the parameters for an Ambry frontend server.
    */
-  private static VerifiableProperties buildFrontendVPropsForQuota(File trustStoreFile, String quotaEnforcerStr,
-      boolean isRequestQuotaEnabled, QuotaMode quotaMode) throws IOException, GeneralSecurityException {
+  private static VerifiableProperties buildFrontendVPropsForQuota(File trustStoreFile, boolean isRequestQuotaEnabled,
+      QuotaMode quotaMode, Account account, boolean throttleRequest) throws IOException, GeneralSecurityException {
     Properties properties = buildFrontendVProps(trustStoreFile, true, PLAINTEXT_SERVER_PORT, SSL_SERVER_PORT);
-    properties.setProperty(QuotaConfig.REQUEST_QUOTA_ENFORCER_SOURCE_PAIR_INFO_JSON, quotaEnforcerStr);
+    // By default the usage and limit of quota will be 0 in the default JsonCUQuotaSource, and hence the default
+    // JsonCUQuotaEnforcer will reject requests. So for cases where we don't want requests to be rejected, we set a
+    // non 0 limit for quota.
+    JSONObject cuResourceQuotaJson = new JSONObject();
+    JSONObject quotaJson = new JSONObject();
+    quotaJson.put("rcu", throttleRequest ? 0 : 10737418240L);
+    quotaJson.put("wcu", throttleRequest ? 0: 10737418240L);
+    cuResourceQuotaJson.put(Integer.toString(account.getId()), quotaJson);
+    properties.setProperty(QuotaConfig.RESOURCE_CU_QUOTA_IN_JSON, cuResourceQuotaJson.toString());
     properties.setProperty(QuotaConfig.THROTTLING_MODE, quotaMode.name());
     properties.setProperty(QuotaConfig.REQUEST_THROTTLING_ENABLED, String.valueOf(isRequestQuotaEnabled));
     return new VerifiableProperties(properties);
@@ -168,33 +180,15 @@ public class FrontendQuotaIntegrationTest extends FrontendIntegrationTestBase {
   }
 
   /**
-   * Build the default quota enforcer and source pair json.
-   * @return Json string.
-   */
-  private static String buildDefaultQuotaEnforcerSourceInfoPairConfig(boolean throttleRequest) {
-    JSONObject jsonObject = new JSONObject();
-    if (throttleRequest) {
-      jsonObject.put(QuotaConfig.ENFORCER_STR, "com.github.ambry.quota.RejectQuotaEnforcerFactory");
-      jsonObject.put(QuotaConfig.SOURCE_STR, "com.github.ambry.quota.DummyQuotaSourceFactory");
-    } else {
-      jsonObject.put(QuotaConfig.ENFORCER_STR,
-          "com.github.ambry.quota.capacityunit.AmbryCapacityUnitQuotaEnforcerFactory");
-      jsonObject.put(QuotaConfig.SOURCE_STR, "com.github.ambry.quota.capacityunit.UnlimitedQuotaSourceFactory");
-    }
-    JSONArray jsonArray = new JSONArray();
-    jsonArray.put(jsonObject);
-    return new JSONObject().put(QuotaConfig.QUOTA_ENFORCER_SOURCE_PAIR_INFO_STR, jsonArray).toString();
-  }
-
-  /**
    * Sets up an Ambry frontend server.
    * @throws Exception
    */
   @Before
   public void setup() throws Exception {
-    String quotaEnforcerSourceInfoPairConfig = buildDefaultQuotaEnforcerSourceInfoPairConfig(throttleRequest);
+    ACCOUNT = ACCOUNT_SERVICE.createAndAddRandomAccount(QuotaResourceType.ACCOUNT);
+    CONTAINER = ACCOUNT.getContainerById(Container.DEFAULT_PUBLIC_CONTAINER_ID);
     VerifiableProperties quotaProps =
-        buildFrontendVPropsForQuota(TRUST_STORE_FILE, quotaEnforcerSourceInfoPairConfig, true, quotaMode);
+        buildFrontendVPropsForQuota(TRUST_STORE_FILE, true, quotaMode, ACCOUNT, throttleRequest);
     ambryRestServer = new RestServer(quotaProps, CLUSTER_MAP, new LoggingNotificationSystem(),
         SSLFactory.getNewInstance(new SSLConfig(FRONTEND_VERIFIABLE_PROPS)));
     ambryRestServer.start();
@@ -222,8 +216,6 @@ public class FrontendQuotaIntegrationTest extends FrontendIntegrationTestBase {
   @Test
   public void postGetHeadUpdateDeleteUndeleteTest() throws Exception {
     int refContentSize = (int) FRONTEND_CONFIG.chunkedGetResponseThresholdInBytes * 3;
-    ACCOUNT = ACCOUNT_SERVICE.createAndAddRandomAccount();
-    CONTAINER = ACCOUNT.getContainerById(Container.DEFAULT_PUBLIC_CONTAINER_ID);
     doPostGetHeadUpdateDeleteUndeleteTest(refContentSize, ACCOUNT, CONTAINER, ACCOUNT.getName(),
         !CONTAINER.isCacheable(), ACCOUNT.getName(), CONTAINER.getName(), false);
   }

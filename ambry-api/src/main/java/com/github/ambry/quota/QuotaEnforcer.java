@@ -37,7 +37,7 @@ public interface QuotaEnforcer {
    * @return QuotaRecommendation object with the recommendation.
    */
   QuotaRecommendation chargeAndRecommend(RestRequest restRequest, BlobInfo blobInfo,
-      Map<QuotaName, Double> requestCostMap);
+      Map<QuotaName, Double> requestCostMap) throws QuotaException;
 
   /**
    * Makes an {@link QuotaRecommendation} for the restRequest. This method doesn't know the
@@ -45,7 +45,12 @@ public interface QuotaEnforcer {
    * @param restRequest {@link RestRequest} object.
    * @return QuotaRecommendation object with the recommendation.
    */
-  QuotaRecommendation recommend(RestRequest restRequest);
+  QuotaRecommendation recommend(RestRequest restRequest) throws QuotaException;
+
+  /**
+   * @return {@code true} if quota exceed is allowed. {@code false} otherwise.
+   */
+  boolean isQuotaExceedAllowed(RestRequest restRequest) throws QuotaException;
 
   /**
    * @return QuotaSource object of the enforcer.
