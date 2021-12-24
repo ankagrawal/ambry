@@ -56,7 +56,6 @@ import static org.mockito.Mockito.*;
 /**
  * Test for {@link HelixParticipant}
  */
-@Ignore
 @RunWith(Parameterized.class)
 public class HelixParticipantTest {
   private final MockHelixManagerFactory helixManagerFactory;
