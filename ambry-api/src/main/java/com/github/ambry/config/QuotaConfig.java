@@ -100,6 +100,53 @@ public class QuotaConfig {
   @Config(QUOTA_ACCOUNTING_UNIT)
   public long quotaAccountingUnit;
 
+  @Config(MAX_FRONTEND_CU_USAGE_TO_ALLOW_EXCEED)
+  public float maxFrontendCuUsageToAllowExceed;
+
+  /**
+   * A JSON string representing cu quota for all accounts and containers. eg:
+   * {
+   *   "101": {
+   *     "1": {
+   *       "rcu": 1024000000,
+   *       "wcu": 1024000000
+   *     },
+   *     "1": {
+   *       "rcu": 258438456,
+   *       "wcu": 258438456
+   *     },
+   *   },
+   *   "102": {
+   *     "1": {
+   *       "rcu": 1024000000,
+   *       "wcu": 1024000000
+   *     }
+   *   },
+   *   "103": {
+   *     "rcu": 10737418240,
+   *     "wcu": 10737418240
+   *   }
+   * }
+   * The key of the top object is the account id and the key of the inner object is the container id.
+   * If there is no inner object, then the quota is for account.
+   * Each quota comprises of a rcu value representing read capacity unit quota limit, and a wcu value
+   * representing write capacity unit limit.
+   */
+  @Config(RESOURCE_CU_QUOTA_IN_JSON)
+  @Default("{}")
+  public final String resourceCUQuotaInJson;
+
+  /**
+   * A JSON string representing bandwidth capacity of frontend node in terms of read capacity unit and write capacity unit.
+   * {
+   *   "rcu": 1024000000,
+   *   "wcu": 1024000000
+   * }
+   */
+  @Config(FRONTEND_CU_CAPACITY_IN_JSON)
+  @Default("{}")
+  public final String frontendCUCapacityInJson;
+
   /**
    * Threshold of CU usage percentage of frontend to allow requests to exceed quota.
    */

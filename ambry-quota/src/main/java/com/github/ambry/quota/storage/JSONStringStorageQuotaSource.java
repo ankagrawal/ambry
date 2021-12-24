@@ -197,4 +197,3 @@ public class JSONStringStorageQuotaSource implements QuotaSource, StorageQuotaEn
     }
   }
 }
-
