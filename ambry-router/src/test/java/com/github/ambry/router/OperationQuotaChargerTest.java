@@ -50,7 +50,7 @@ public class OperationQuotaChargerTest {
         operationQuotaCharger.check());
 
     // check should return false even if quotaChargeCallback returns false when isCharged is true.
-    Mockito.doNothing().when(quotaChargeCallback).checkAndCharge();
+    Mockito.when(quotaChargeCallback.checkAndCharge()).thenReturn(true);
     operationQuotaCharger.checkAndCharge(); // sets isCharged to true.
     Mockito.when(quotaChargeCallback.check()).thenReturn(false);
     Assert.assertTrue("check should return true even if quotaChargeCallback returns false when isCharged is true.",
@@ -61,26 +61,32 @@ public class OperationQuotaChargerTest {
   public void testCharge() throws Exception {
     // chargeIfUsageWithinQuota should return true if quotaChargeCallback is null.
     OperationQuotaCharger operationQuotaCharger = new OperationQuotaCharger(null, BLOBID, "GetOperation");
-    Assert.assertTrue("chargeIfUsageWithinQuota should return true if quotaChargeCallback is null.", operationQuotaCharger.checkAndCharge());
+    Assert.assertTrue("chargeIfUsageWithinQuota should return true if quotaChargeCallback is null.",
+        operationQuotaCharger.checkAndCharge());
 
     QuotaChargeCallback quotaChargeCallback = Mockito.mock(QuotaChargeCallback.class);
     operationQuotaCharger = new OperationQuotaCharger(quotaChargeCallback, BLOBID, "GetOperation");
 
     // chargeIfUsageWithinQuota should return false if quotaChargeCallback throws exception and isCharged is false.
-    Mockito.doThrow(new RouterException("", RouterErrorCode.TooManyRequests)).when(quotaChargeCallback).checkAndCharge();
-    Assert.assertFalse("chargeIfUsageWithinQuota should return true if quotaChargeCallback throws exception and isCharged is false.",
+    Mockito.doThrow(
+        new QuotaException("too many requests", new RouterException("", RouterErrorCode.TooManyRequests), true))
+        .when(quotaChargeCallback)
+        .checkAndCharge();
+    Assert.assertFalse(
+        "chargeIfUsageWithinQuota should return true if quotaChargeCallback throws exception and isCharged is false.",
         operationQuotaCharger.checkAndCharge());
     Mockito.verify(quotaChargeCallback, Mockito.times(1)).checkAndCharge();
 
     // chargeIfUsageWithinQuota should return true if quotaChargeCallback.chargeIfUsageWithinQuota goes through.
-    Mockito.doNothing().when(quotaChargeCallback).checkAndCharge();
-    Assert.assertTrue("chargeIfUsageWithinQuota should return true if quotaChargeCallback.chargeIfUsageWithinQuota goes through.",
+    Mockito.doReturn(true).when(quotaChargeCallback).checkAndCharge();
+    Assert.assertTrue(
+        "chargeIfUsageWithinQuota should return true if quotaChargeCallback.chargeIfUsageWithinQuota goes through.",
         operationQuotaCharger.checkAndCharge());
     Mockito.verify(quotaChargeCallback, Mockito.times(2)).checkAndCharge();
 
     // Once isCharged is true, chargeIfUsageWithinQuota should never call quotaChargeCallback.chargeIfUsageWithinQuota.
-    Mockito.doNothing().when(quotaChargeCallback).checkAndCharge();
-    Assert.assertTrue("Once isCharged is true, chargeIfUsageWithinQuota should never call quotaChargeCallback.chargeIfUsageWithinQuota.",
+    Assert.assertTrue(
+        "Once isCharged is true, chargeIfUsageWithinQuota should never call quotaChargeCallback.chargeIfUsageWithinQuota.",
         operationQuotaCharger.checkAndCharge());
     Mockito.verify(quotaChargeCallback, Mockito.times(2)).checkAndCharge();
   }
@@ -89,18 +95,23 @@ public class OperationQuotaChargerTest {
   public void testQuotaExceedAllowed() throws Exception {
     // chargeIfQuotaExceedAllowed should return true if quotaChargeCallback is null.
     OperationQuotaCharger operationQuotaCharger = new OperationQuotaCharger(null, BLOBID, "GetOperation");
-    Assert.assertTrue("chargeIfQuotaExceedAllowed should return true if quotaChargeCallback is null.", operationQuotaCharger.chargeIfQuotaExceedAllowed());
+    Assert.assertTrue("chargeIfQuotaExceedAllowed should return true if quotaChargeCallback is null.",
+        operationQuotaCharger.chargeIfQuotaExceedAllowed());
 
     QuotaChargeCallback quotaChargeCallback = Mockito.mock(QuotaChargeCallback.class);
     operationQuotaCharger = new OperationQuotaCharger(quotaChargeCallback, BLOBID, "GetOperation");
 
     // chargeIfQuotaExceedAllowed should return true if quotaChargeCallback.chargeIfQuotaExceedAllowed returns true.
     Mockito.when(quotaChargeCallback.chargeIfQuotaExceedAllowed()).thenReturn(true);
-    Assert.assertTrue("chargeIfQuotaExceedAllowed should return true if quotaChargeCallback.chargeIfQuotaExceedAllowed returns true.", operationQuotaCharger.chargeIfQuotaExceedAllowed());
+    Assert.assertTrue(
+        "chargeIfQuotaExceedAllowed should return true if quotaChargeCallback.chargeIfQuotaExceedAllowed returns true.",
+        operationQuotaCharger.chargeIfQuotaExceedAllowed());
 
     // chargeIfQuotaExceedAllowed should return false if quotaChargeCallback.chargeIfQuotaExceedAllowed returns false.
     Mockito.when(quotaChargeCallback.chargeIfQuotaExceedAllowed()).thenReturn(false);
-    Assert.assertFalse("chargeIfQuotaExceedAllowed should return false if quotaChargeCallback.chargeIfQuotaExceedAllowed returns false.", operationQuotaCharger.chargeIfQuotaExceedAllowed());
+    Assert.assertFalse(
+        "chargeIfQuotaExceedAllowed should return false if quotaChargeCallback.chargeIfQuotaExceedAllowed returns false.",
+        operationQuotaCharger.chargeIfQuotaExceedAllowed());
   }
 
   @Test
