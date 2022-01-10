@@ -22,7 +22,6 @@ import com.github.ambry.quota.QuotaResource;
 import com.github.ambry.quota.QuotaSource;
 import com.github.ambry.quota.QuotaUtils;
 import com.github.ambry.rest.RestRequest;
-import com.github.ambry.rest.RestServiceException;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +56,8 @@ public class JsonCUQuotaEnforcer implements QuotaEnforcer {
       Map<QuotaName, Double> requestCostMap) throws QuotaException {
     try {
       if (requestCostMap.size() == 0) {
-        String errorMessage = String.format("Empty cost map provided for %s request for blob %s. Nothing to charge", (restRequest == null ? "null" : restRequest.getRestMethod().name()),
+        String errorMessage = String.format("Empty cost map provided for %s request for blob %s. Nothing to charge",
+            (restRequest == null ? "null" : restRequest.getRestMethod().name()),
             (blobInfo == null ? "null" : blobInfo.getBlobProperties()));
         logger.warn(errorMessage);
         throw new QuotaException(errorMessage, true);
@@ -109,7 +109,7 @@ public class JsonCUQuotaEnforcer implements QuotaEnforcer {
 
   private QuotaRecommendation buildQuotaRecommendation(long limit, long usage, QuotaName quotaName) {
     boolean shouldThrottle = (usage >= limit);
-    return new QuotaRecommendation(shouldThrottle, (usage * 100) / (float) limit, quotaName,
+    return new QuotaRecommendation(shouldThrottle, (limit == 0) ? 100 : ((usage * 100) / (float) limit), quotaName,
         shouldThrottle ? THROTTLE_HTTP_STATUS : NO_THROTTLE_HTTP_STATUS,
         shouldThrottle ? THROTTLE_RETRY_AFTER_MS : NO_THROTTLE_RETRY_AFTER_MS);
   }

@@ -266,7 +266,7 @@ public class NonBlockingRouterTest extends NonBlockingRouterTestBase {
     // For example, when deleting a blob, there are three delete requests being sent to the mock server. But only two of
     // them required to be acknowledged. There is a chance that when we undelete this blob, this third unacknowledged
     // delete request would override the undelete state.
-    setRouter(getNonBlockingRouterProperties("DC1", 3, 2), mockServerLayout, new LoggingNotificationSystem());
+    setRouter(getNonBlockingRouterProperties(new Properties(), "DC1", 3, 2), mockServerLayout, new LoggingNotificationSystem());
     assertExpectedThreadCounts(2, 1);
 
     // 1. Test undelete a composite blob

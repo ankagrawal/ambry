@@ -43,7 +43,7 @@ public class QuotaTestUtils {
   public static QuotaConfig createQuotaConfig(Map<String, String> enforcerSourcemap, boolean isRequestThrottlingEnabled,
       QuotaMode quotaMode) {
     Properties properties = new Properties();
-    properties.setProperty(QuotaConfig.REQUEST_THROTTLING_ENABLED, "" + isRequestThrottlingEnabled);
+    properties.setProperty(QuotaConfig.REQUEST_THROTTLING_FEATURE_ENABLED, "" + isRequestThrottlingEnabled);
     properties.setProperty(QuotaConfig.THROTTLING_MODE, quotaMode.name());
     JSONArray jsonArray = new JSONArray();
     for (String enforcerFactoryClass : enforcerSourcemap.keySet()) {
@@ -143,6 +143,11 @@ public class QuotaTestUtils {
       @Override
       public QuotaMethod getQuotaMethod() {
         return null;
+      }
+
+      @Override
+      public QuotaConfig getQuotaConfig() {
+        return new QuotaConfig(new VerifiableProperties(new Properties()));
       }
     };
   }

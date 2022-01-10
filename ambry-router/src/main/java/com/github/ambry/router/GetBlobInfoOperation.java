@@ -447,7 +447,7 @@ class GetBlobInfoOperation extends GetOperation {
     }
 
     if (operationCompleted && operationCallbackInvoked.compareAndSet(false, true)) {
-      if (quotaChargeCallback != null) {
+      if (quotaChargeCallback != null && !quotaChargeCallback.getQuotaConfig().chargeQuotaPreProcess) {
         try {
           quotaChargeCallback.checkAndCharge();
         } catch (QuotaException quotaException) {

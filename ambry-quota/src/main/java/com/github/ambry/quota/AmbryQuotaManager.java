@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
  */
 public class AmbryQuotaManager implements QuotaManager {
   private static final Logger logger = LoggerFactory.getLogger(AmbryQuotaManager.class);
-  private final Set<QuotaEnforcer> quotaEnforcers;
+  protected final Set<QuotaEnforcer> quotaEnforcers;
   private final ThrottlePolicy throttlePolicy;
   private final QuotaConfig quotaConfig;
   private final QuotaMetrics quotaMetrics;
@@ -204,7 +204,7 @@ public class AmbryQuotaManager implements QuotaManager {
       Timer.Context timer = quotaMetrics.quotaChargeTime.time();
       try {
         throttlingRecommendation = getThrottleRecommendation(restRequest);
-        if (throttlingRecommendation.shouldThrottle()) {
+        if (throttlingRecommendation.shouldThrottle() && quotaConfig.throttlingMode == QuotaMode.THROTTLING) {
           return false;
         }
         chargeQuotaUsage(restRequest, blobInfo, requestCostMap);
@@ -243,19 +243,10 @@ public class AmbryQuotaManager implements QuotaManager {
    * @param updatedAccounts {@link Collection} of {@link Account}s updated.
    */
   protected void onAccountUpdateNotification(Collection<Account> updatedAccounts) {
-    Set<QuotaResource> updatedQuotaResources = new HashSet<>();
-    updatedAccounts.forEach(account -> {
-      if (account.getQuotaResourceType() == QuotaResourceType.ACCOUNT) {
-        updatedQuotaResources.add(QuotaResource.fromAccount(account));
-      } else {
-        account.getAllContainers()
-            .forEach(container -> updatedQuotaResources.add(QuotaResource.fromContainer(container)));
-      }
-    });
     quotaEnforcers.stream()
         .map(QuotaEnforcer::getQuotaSource)
         .filter(Objects::nonNull)
-        .forEach(quotaSource -> quotaSource.updateNewQuotaResources(updatedQuotaResources));
+        .forEach(quotaSource -> quotaSource.updateNewQuotaResources(updatedAccounts));
   }
 
   /**

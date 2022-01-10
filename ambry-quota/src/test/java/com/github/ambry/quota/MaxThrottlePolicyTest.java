@@ -137,7 +137,7 @@ public class MaxThrottlePolicyTest {
 
     // Test when the request throttling is disabled
     Properties prop = new Properties();
-    prop.setProperty(QuotaConfig.REQUEST_THROTTLING_ENABLED, "false");
+    prop.setProperty(QuotaConfig.REQUEST_THROTTLING_FEATURE_ENABLED, "false");
     maxThrottlePolicy = new MaxThrottlePolicy(new QuotaConfig(new VerifiableProperties(prop)));
 
     // test for a request quota recommendation.
@@ -190,7 +190,7 @@ public class MaxThrottlePolicyTest {
     // Test when both quota throttling are disabled
     prop = new Properties();
     prop.setProperty(StorageQuotaConfig.SHOULD_THROTTLE, "false");
-    prop.setProperty(QuotaConfig.REQUEST_THROTTLING_ENABLED, "false");
+    prop.setProperty(QuotaConfig.REQUEST_THROTTLING_FEATURE_ENABLED, "false");
     maxThrottlePolicy = new MaxThrottlePolicy(new QuotaConfig(new VerifiableProperties(prop)));
 
     quotaRecommendation =

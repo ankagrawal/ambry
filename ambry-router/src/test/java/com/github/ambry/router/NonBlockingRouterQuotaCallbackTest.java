@@ -14,6 +14,7 @@
 package com.github.ambry.router;
 
 import com.codahale.metrics.MetricRegistry;
+import com.github.ambry.account.Account;
 import com.github.ambry.account.AccountService;
 import com.github.ambry.accountstats.AccountStatsStore;
 import com.github.ambry.commons.RetainingAsyncWritableChannel;
@@ -26,19 +27,24 @@ import com.github.ambry.quota.AmbryQuotaManager;
 import com.github.ambry.quota.MaxThrottlePolicy;
 import com.github.ambry.quota.QuotaChargeCallback;
 import com.github.ambry.quota.QuotaException;
-import com.github.ambry.quota.QuotaManager;
 import com.github.ambry.quota.QuotaMethod;
 import com.github.ambry.quota.QuotaMode;
 import com.github.ambry.quota.QuotaName;
 import com.github.ambry.quota.QuotaResource;
+import com.github.ambry.quota.QuotaResourceType;
 import com.github.ambry.quota.ThrottlePolicy;
 import com.github.ambry.quota.ThrottlingRecommendation;
+import com.github.ambry.quota.capacityunit.JsonCUQuotaEnforcer;
+import com.github.ambry.quota.capacityunit.JsonCUQuotaSource;
+import com.github.ambry.rest.MockRestRequest;
+import com.github.ambry.rest.RequestPath;
+import com.github.ambry.rest.RestMethod;
 import com.github.ambry.rest.RestRequest;
-import com.github.ambry.rest.RestServiceException;
+import com.github.ambry.rest.RestUtils;
 import com.github.ambry.utils.Utils;
-import com.sun.org.apache.xpath.internal.operations.Quo;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -46,6 +52,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import org.json.JSONObject;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -125,7 +132,8 @@ public class NonBlockingRouterQuotaCallbackTest extends NonBlockingRouterTestBas
         @Override
         public boolean checkAndCharge(long chunkSize) throws QuotaException {
           listenerCalledCount.addAndGet(chunkSize);
-          throw new QuotaException("exception during check and charge", new RouterException("Quota exceeded.", RouterErrorCode.TooManyRequests), false);
+          throw new QuotaException("exception during check and charge",
+              new RouterException("Quota exceeded.", RouterErrorCode.TooManyRequests), false);
         }
 
         @Override
@@ -156,6 +164,13 @@ public class NonBlockingRouterQuotaCallbackTest extends NonBlockingRouterTestBas
         @Override
         public QuotaMethod getQuotaMethod() {
           return null;
+        }
+
+        @Override
+        public QuotaConfig getQuotaConfig() {
+          Properties properties = new Properties();
+          properties.setProperty("quota.charge.quota.pre.process", "true");
+          return new QuotaConfig(new VerifiableProperties(properties));
         }
       };
 
@@ -268,20 +283,46 @@ public class NonBlockingRouterQuotaCallbackTest extends NonBlockingRouterTestBas
     try {
       setRouter();
       assertExpectedThreadCounts(2, 1);
-      AtomicInteger listenerCalledCount = new AtomicInteger(0);
-      QuotaConfig quotaConfig = new QuotaConfig(new VerifiableProperties(new Properties()));
-      QuotaManager quotaManager =
+      Properties properties = new Properties();
+      properties.setProperty("quota.charge.quota.pre.process", "true");
+      QuotaConfig quotaConfig = new QuotaConfig(new VerifiableProperties(properties));
+      ChargeTesterQuotaManager quotaManager =
           new ChargeTesterQuotaManager(quotaConfig, new MaxThrottlePolicy(quotaConfig), accountService, null,
-              new MetricRegistry(), listenerCalledCount);
-      QuotaChargeCallback quotaChargeCallback = QuotaChargeCallback.buildQuotaChargeCallback(null, quotaManager, true);
+              new MetricRegistry());
+      JsonCUQuotaEnforcer quotaEnforcer = quotaManager.getQuotaEnforcer();
+      JsonCUQuotaSource quotaSource = (JsonCUQuotaSource) quotaEnforcer.getQuotaSource();
+      JSONObject data = new JSONObject();
+      data.put(MockRestRequest.REST_METHOD_KEY, RestMethod.POST.name());
+      JSONObject headers = new JSONObject();
+      headers.put(RestUtils.InternalKeys.REQUEST_PATH, RequestPath.parse("/", Collections.EMPTY_MAP, null, ""));
+      Account account = accountService.createAndAddRandomAccount(QuotaResourceType.ACCOUNT);
+      headers.put(RestUtils.InternalKeys.TARGET_ACCOUNT_KEY, account);
+      headers.put(RestUtils.InternalKeys.TARGET_CONTAINER_KEY, account.getAllContainers().iterator().next());
+      data.put(MockRestRequest.HEADERS_KEY, headers);
+      data.put(MockRestRequest.URI_KEY, "/");
+      QuotaChargeCallback quotaChargeCallback =
+          QuotaChargeCallback.buildQuotaChargeCallback(new MockRestRequest(data, null), quotaManager, true);
 
       int blobSize = 3000;
       setOperationParams(blobSize, TTL_SECS);
       String compositeBlobId =
           router.putBlob(putBlobProperties, putUserMetadata, putChannel, PutBlobOptions.DEFAULT, null,
               quotaChargeCallback).get();
-      assertEquals(0, listenerCalledCount.get());
+      int expectedCU =
+          (int) (blobSize / quotaConfig.quotaAccountingUnit) + (((blobSize % quotaConfig.quotaAccountingUnit) == 0) ? 0
+              : 1) + 1;
+      assertEquals(expectedCU, quotaManager.getTotalCU());
+      assertEquals(expectedCU,
+          (long) quotaSource.getUsage(new QuotaResource(String.valueOf(account.getId()), QuotaResourceType.ACCOUNT),
+              QuotaName.WRITE_CAPACITY_UNIT).getQuotaValue());
+      assertEquals(expectedCU, (long) quotaSource.getFeUsage(QuotaName.WRITE_CAPACITY_UNIT).getQuotaValue());
       RetainingAsyncWritableChannel retainingAsyncWritableChannel = new RetainingAsyncWritableChannel();
+      data.put(MockRestRequest.REST_METHOD_KEY, RestMethod.GET.name());
+      data.put(MockRestRequest.URI_KEY, "/" + compositeBlobId);
+      headers.put(RestUtils.InternalKeys.REQUEST_PATH,
+          RequestPath.parse("/" + compositeBlobId, Collections.EMPTY_MAP, null, ""));
+      quotaChargeCallback =
+          QuotaChargeCallback.buildQuotaChargeCallback(new MockRestRequest(data, null), quotaManager, true);
       router.getBlob(compositeBlobId, new GetBlobOptionsBuilder().build(), null, quotaChargeCallback)
           .get()
           .getBlobDataChannel()
@@ -289,7 +330,9 @@ public class NonBlockingRouterQuotaCallbackTest extends NonBlockingRouterTestBas
           .get();
       // read out all the chunks.
       retainingAsyncWritableChannel.consumeContentAsInputStream().close();
-      assertEquals(0, listenerCalledCount.get());
+      assertEquals(expectedCU, (long) quotaSource.getFeUsage(QuotaName.READ_CAPACITY_UNIT).getQuotaValue());
+      expectedCU += expectedCU;
+      assertEquals(expectedCU, quotaAccountingSize);
     } finally {
       router.close();
       assertExpectedThreadCounts(0, 0);
@@ -303,7 +346,10 @@ public class NonBlockingRouterQuotaCallbackTest extends NonBlockingRouterTestBas
    * {@link AmbryQuotaManager} extension to test behavior with default implementation.
    */
   static class ChargeTesterQuotaManager extends AmbryQuotaManager {
-    private final AtomicInteger chargeCalledCount;
+    private final AtomicInteger chargeCalledCount = new AtomicInteger(0);
+    private final AtomicInteger chargeIfUsageWithinQuotaCalledCount = new AtomicInteger(0);
+    private final AtomicInteger chargeIfQuotaExceedAllowedCount = new AtomicInteger(0);
+    private final AtomicInteger totalCU = new AtomicInteger(0);
 
     /**
      * Constructor for {@link ChargeTesterQuotaManager}.
@@ -315,20 +361,51 @@ public class NonBlockingRouterQuotaCallbackTest extends NonBlockingRouterTestBas
      * @throws ReflectiveOperationException in case of any exception.
      */
     public ChargeTesterQuotaManager(QuotaConfig quotaConfig, ThrottlePolicy throttlePolicy,
-        AccountService accountService, AccountStatsStore accountStatsStore, MetricRegistry metricRegistry,
-        AtomicInteger chargeCalledCount) throws ReflectiveOperationException {
+        AccountService accountService, AccountStatsStore accountStatsStore, MetricRegistry metricRegistry) throws ReflectiveOperationException {
       super(quotaConfig, throttlePolicy, accountService, accountStatsStore, metricRegistry);
-      this.chargeCalledCount = chargeCalledCount;
     }
 
     @Override
     public ThrottlingRecommendation charge(RestRequest restRequest, BlobInfo blobInfo,
         Map<QuotaName, Double> requestCostMap) {
+      chargeCalledCount.incrementAndGet();
       ThrottlingRecommendation throttlingRecommendation = super.charge(restRequest, blobInfo, requestCostMap);
-      if (throttlingRecommendation != null) {
-        chargeCalledCount.incrementAndGet();
-      }
       return throttlingRecommendation;
+    }
+
+    @Override
+    public boolean chargeIfUsageWithinQuota(RestRequest restRequest, BlobInfo blobInfo,
+        Map<QuotaName, Double> requestCostMap) throws QuotaException {
+      chargeIfUsageWithinQuotaCalledCount.incrementAndGet();
+      boolean throttlingRecommendation = super.chargeIfUsageWithinQuota(restRequest, blobInfo, requestCostMap);
+      return throttlingRecommendation;
+    }
+
+    @Override
+    public boolean chargeIfQuotaExceedAllowed(RestRequest restRequest, BlobInfo blobInfo,
+        Map<QuotaName, Double> requestCostMap) throws QuotaException {
+      chargeIfQuotaExceedAllowedCount.incrementAndGet();
+      return super.chargeIfQuotaExceedAllowed(restRequest, blobInfo, requestCostMap);
+    }
+
+    public JsonCUQuotaEnforcer getQuotaEnforcer() {
+      return (JsonCUQuotaEnforcer) quotaEnforcers.iterator().next();
+    }
+
+    public AtomicInteger getChargeCalledCount() {
+      return chargeCalledCount;
+    }
+
+    public AtomicInteger getChargeIfUsageWithinQuotaCalledCount() {
+      return chargeIfUsageWithinQuotaCalledCount;
+    }
+
+    public AtomicInteger getChargeIfQuotaExceedAllowedCount() {
+      return chargeIfQuotaExceedAllowedCount;
+    }
+
+    public AtomicInteger getTotalCU() {
+      return totalCU;
     }
   }
 }

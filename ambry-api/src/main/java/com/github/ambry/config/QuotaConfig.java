@@ -26,7 +26,7 @@ public class QuotaConfig {
   public static final String ENFORCER_STR = "enforcer";
   public static final String SOURCE_STR = "source";
   public static final String QUOTA_CONFIG_PREFIX = "quota.";
-  public static final String REQUEST_THROTTLING_ENABLED = QUOTA_CONFIG_PREFIX + "request.throttling.enabled";
+  public static final String REQUEST_THROTTLING_FEATURE_ENABLED = QUOTA_CONFIG_PREFIX + "request.throttling.feature.enabled";
   public static final String THROTTLING_MODE = QUOTA_CONFIG_PREFIX + "throttling.mode";
   public static final String THROTTLE_IN_PROGRESS_REQUESTS = QUOTA_CONFIG_PREFIX + "throttle.in.progress.requests";
   public static final String REQUEST_QUOTA_ENFORCER_SOURCE_PAIR_INFO_JSON =
@@ -36,6 +36,7 @@ public class QuotaConfig {
   public static final String MAX_FRONTEND_CU_USAGE_TO_ALLOW_EXCEED = QUOTA_CONFIG_PREFIX + "max.frontend.cu.usage.to.allow.exceed";
   public static final String RESOURCE_CU_QUOTA_IN_JSON = QUOTA_CONFIG_PREFIX + "resource.cu.quota.in.json";
   public static final String FRONTEND_CU_CAPACITY_IN_JSON = QUOTA_CONFIG_PREFIX + "frontend.cu.capacity.in.json";
+  public static final String CHARGE_QUOTA_PRE_PROCESS = QUOTA_CONFIG_PREFIX + "charge.quota.pre.process";
   public static final String DEFAULT_QUOTA_MANAGER_FACTORY = "com.github.ambry.quota.AmbryQuotaManagerFactory";
   public static final String DEFAULT_QUOTA_THROTTLING_MODE = QuotaMode.TRACKING.name();
   public static final boolean DEFAULT_THROTTLE_IN_PROGRESS_REQUESTS = false;
@@ -43,6 +44,7 @@ public class QuotaConfig {
   public static final float DEFAULT_MAX_FRONTEND_CU_USAGE_TO_ALLOW_EXCEED = 80.0f;
   public static final String DEFAULT_CU_QUOTA_IN_JSON = "{}";
   public static final String DEFAULT_FRONTEND_BANDWIDTH_CAPACITY_IN_JSON = "{}";
+  public static final boolean DEFAULT_CHARGE_QUOTA_PRE_PROCESS = false;
   public StorageQuotaConfig storageQuotaConfig;
 
 
@@ -84,9 +86,9 @@ public class QuotaConfig {
   /**
    * Config to enable request throttling on customer's account or container.
    */
-  @Config(REQUEST_THROTTLING_ENABLED)
+  @Config(REQUEST_THROTTLING_FEATURE_ENABLED)
   @Default("true")
-  public boolean requestThrottlingEnabled;
+  public boolean requestThrottlingFeatureEnabled;
 
   /**
    * Should requests in progress be throttled if they exceed their quota.
@@ -99,53 +101,6 @@ public class QuotaConfig {
    */
   @Config(QUOTA_ACCOUNTING_UNIT)
   public long quotaAccountingUnit;
-
-  @Config(MAX_FRONTEND_CU_USAGE_TO_ALLOW_EXCEED)
-  public float maxFrontendCuUsageToAllowExceed;
-
-  /**
-   * A JSON string representing cu quota for all accounts and containers. eg:
-   * {
-   *   "101": {
-   *     "1": {
-   *       "rcu": 1024000000,
-   *       "wcu": 1024000000
-   *     },
-   *     "1": {
-   *       "rcu": 258438456,
-   *       "wcu": 258438456
-   *     },
-   *   },
-   *   "102": {
-   *     "1": {
-   *       "rcu": 1024000000,
-   *       "wcu": 1024000000
-   *     }
-   *   },
-   *   "103": {
-   *     "rcu": 10737418240,
-   *     "wcu": 10737418240
-   *   }
-   * }
-   * The key of the top object is the account id and the key of the inner object is the container id.
-   * If there is no inner object, then the quota is for account.
-   * Each quota comprises of a rcu value representing read capacity unit quota limit, and a wcu value
-   * representing write capacity unit limit.
-   */
-  @Config(RESOURCE_CU_QUOTA_IN_JSON)
-  @Default("{}")
-  public final String resourceCUQuotaInJson;
-
-  /**
-   * A JSON string representing bandwidth capacity of frontend node in terms of read capacity unit and write capacity unit.
-   * {
-   *   "rcu": 1024000000,
-   *   "wcu": 1024000000
-   * }
-   */
-  @Config(FRONTEND_CU_CAPACITY_IN_JSON)
-  @Default("{}")
-  public final String frontendCUCapacityInJson;
 
   /**
    * Threshold of CU usage percentage of frontend to allow requests to exceed quota.
@@ -197,13 +152,17 @@ public class QuotaConfig {
   @Default("{}")
   public final String frontendCUCapacityInJson;
 
+  @Config(CHARGE_QUOTA_PRE_PROCESS)
+  @Default("false")
+  public final boolean chargeQuotaPreProcess;
+
   /**
    * Constructor for {@link QuotaConfig}.
    * @param verifiableProperties {@link VerifiableProperties} object.
    */
   public QuotaConfig(VerifiableProperties verifiableProperties) {
     storageQuotaConfig = new StorageQuotaConfig(verifiableProperties);
-    requestThrottlingEnabled = verifiableProperties.getBoolean(REQUEST_THROTTLING_ENABLED, true);
+    requestThrottlingFeatureEnabled = verifiableProperties.getBoolean(REQUEST_THROTTLING_FEATURE_ENABLED, true);
     requestQuotaEnforcerSourcePairInfoJson =
         verifiableProperties.getString(REQUEST_QUOTA_ENFORCER_SOURCE_PAIR_INFO_JSON,
             buildDefaultQuotaEnforcerSourceInfoPairJson().toString());
@@ -215,6 +174,7 @@ public class QuotaConfig {
     maxFrontendCuUsageToAllowExceed = verifiableProperties.getFloatInRange(MAX_FRONTEND_CU_USAGE_TO_ALLOW_EXCEED, DEFAULT_MAX_FRONTEND_CU_USAGE_TO_ALLOW_EXCEED, 0.0f, 100.0f);
     resourceCUQuotaInJson = verifiableProperties.getString(RESOURCE_CU_QUOTA_IN_JSON, DEFAULT_CU_QUOTA_IN_JSON);
     frontendCUCapacityInJson = verifiableProperties.getString(FRONTEND_CU_CAPACITY_IN_JSON, DEFAULT_FRONTEND_BANDWIDTH_CAPACITY_IN_JSON);
+    chargeQuotaPreProcess = verifiableProperties.getBoolean(CHARGE_QUOTA_PRE_PROCESS, false);
   }
 
   /**

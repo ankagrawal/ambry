@@ -313,7 +313,7 @@ class DeleteOperation {
         operationException.set(
             new RouterException("DeleteOperation failed because of BlobNotFound", RouterErrorCode.BlobDoesNotExist));
       }
-      if (quotaChargeCallback != null) {
+      if (quotaChargeCallback != null && !quotaChargeCallback.getQuotaConfig().chargeQuotaPreProcess) {
         try {
           quotaChargeCallback.checkAndCharge();
         } catch (QuotaException quotaException) {

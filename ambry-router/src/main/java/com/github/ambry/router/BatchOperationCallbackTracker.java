@@ -87,7 +87,7 @@ class BatchOperationCallbackTracker {
    */
   private void complete(Exception e) {
     if (completed.compareAndSet(false, true)) {
-      if (quotaChargeCallback != null) {
+      if (quotaChargeCallback != null && !quotaChargeCallback.getQuotaConfig().chargeQuotaPreProcess) {
         try {
           quotaChargeCallback.checkAndCharge();
         } catch (QuotaException qEx) {

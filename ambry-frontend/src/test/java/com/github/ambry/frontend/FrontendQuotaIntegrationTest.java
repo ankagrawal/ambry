@@ -132,7 +132,7 @@ public class FrontendQuotaIntegrationTest extends FrontendIntegrationTestBase {
     cuResourceQuotaJson.put(Integer.toString(account.getId()), quotaJson);
     properties.setProperty(QuotaConfig.RESOURCE_CU_QUOTA_IN_JSON, cuResourceQuotaJson.toString());
     properties.setProperty(QuotaConfig.THROTTLING_MODE, quotaMode.name());
-    properties.setProperty(QuotaConfig.REQUEST_THROTTLING_ENABLED, String.valueOf(isRequestQuotaEnabled));
+    properties.setProperty(QuotaConfig.REQUEST_THROTTLING_FEATURE_ENABLED, String.valueOf(isRequestQuotaEnabled));
     properties.setProperty(QuotaConfig.FRONTEND_CU_CAPACITY_IN_JSON, "{\n" + "  \"rcu\": 1024,\n"
         + "  \"wcu\": 1024\n" + "}");
     long quotaValue = throttleRequest ? DEFAULT_REJECT_QUOTA : DEFAULT_ACCEPT_QUOTA;

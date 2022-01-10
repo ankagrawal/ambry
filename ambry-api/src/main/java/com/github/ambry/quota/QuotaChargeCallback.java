@@ -13,9 +13,8 @@
  */
 package com.github.ambry.quota;
 
+import com.github.ambry.config.QuotaConfig;
 import com.github.ambry.rest.RestRequest;
-import com.github.ambry.rest.RestServiceErrorCode;
-import com.github.ambry.rest.RestServiceException;
 import com.github.ambry.router.RouterErrorCode;
 import com.github.ambry.router.RouterException;
 import java.util.Map;
@@ -30,6 +29,15 @@ import org.slf4j.LoggerFactory;
 public interface QuotaChargeCallback {
   Logger logger = LoggerFactory.getLogger(QuotaChargeCallback.class);
 
+  static QuotaChargeCallback buildQuotaChargeCallback(RestRequest restRequest, QuotaManager quotaManager,
+      boolean shouldThrottle) {
+    if (quotaManager.getQuotaConfig().chargeQuotaPreProcess) {
+      return buildPreProcessQuotaChargeCallback(restRequest, quotaManager);
+    } else {
+      return buildPostProcessQuotaChargeCallback(restRequest, quotaManager, shouldThrottle);
+    }
+  }
+
   /**
    * Build {@link QuotaChargeCallback} to handle quota compliance of requests.
    * @param restRequest {@link RestRequest} for which quota is being charged.
@@ -37,7 +45,8 @@ public interface QuotaChargeCallback {
    * @param shouldThrottle flag indicating if request should be throttled after charging. Requests like updatettl, delete etc need not be throttled.
    * @return QuotaChargeCallback object.
    */
-  static QuotaChargeCallback buildQuotaChargeCallback(RestRequest restRequest, QuotaManager quotaManager, boolean shouldThrottle) {
+  static QuotaChargeCallback buildPostProcessQuotaChargeCallback(RestRequest restRequest, QuotaManager quotaManager,
+      boolean shouldThrottle) {
     RequestCostPolicy requestCostPolicy = new UserQuotaRequestCostPolicy(quotaManager.getQuotaConfig());
     return new QuotaChargeCallback() {
       @Override
@@ -51,7 +60,8 @@ public interface QuotaChargeCallback {
           if (throttlingRecommendation != null && throttlingRecommendation.shouldThrottle() && shouldThrottle) {
             if (quotaManager.getQuotaMode() == QuotaMode.THROTTLING
                 && quotaManager.getQuotaConfig().throttleInProgressRequests) {
-              throw new QuotaException("Exception while charging quota", new RouterException("RequestQuotaExceeded", RouterErrorCode.TooManyRequests), false);
+              throw new QuotaException("Exception while charging quota",
+                  new RouterException("RequestQuotaExceeded", RouterErrorCode.TooManyRequests), false);
             } else {
               logger.debug("Quota exceeded for an in progress request.");
             }
@@ -95,6 +105,11 @@ public interface QuotaChargeCallback {
       public QuotaMethod getQuotaMethod() {
         return QuotaUtils.getQuotaMethod(restRequest);
       }
+
+      @Override
+      public QuotaConfig getQuotaConfig() {
+        return quotaManager.getQuotaConfig();
+      }
     };
   }
 
@@ -104,7 +119,7 @@ public interface QuotaChargeCallback {
    * @param quotaManager {@link QuotaManager} object responsible for charging the quota.
    * @return QuotaChargeCallback object.
    */
-  static QuotaChargeCallback buildOperationControllerQuotaChargeCallback(RestRequest restRequest, QuotaManager quotaManager) {
+  static QuotaChargeCallback buildPreProcessQuotaChargeCallback(RestRequest restRequest, QuotaManager quotaManager) {
     RequestCostPolicy requestCostPolicy = new UserQuotaRequestCostPolicy(quotaManager.getQuotaConfig());
     return new QuotaChargeCallback() {
       @Override
@@ -113,11 +128,7 @@ public interface QuotaChargeCallback {
             .entrySet()
             .stream()
             .collect(Collectors.toMap(entry -> QuotaName.valueOf(entry.getKey()), entry -> entry.getValue()));
-        boolean charged = quotaManager.chargeIfUsageWithinQuota(restRequest, null, requestCost);
-        if (quotaManager.getQuotaMode() == QuotaMode.THROTTLING) {
-          return charged;
-        }
-        return true;
+        return quotaManager.chargeIfUsageWithinQuota(restRequest, null, requestCost);
       }
 
       @Override
@@ -136,11 +147,7 @@ public interface QuotaChargeCallback {
             .entrySet()
             .stream()
             .collect(Collectors.toMap(entry -> QuotaName.valueOf(entry.getKey()), entry -> entry.getValue()));
-        boolean charged = quotaManager.chargeIfQuotaExceedAllowed(restRequest, null, requestCost);
-        if (quotaManager.getQuotaMode() == QuotaMode.THROTTLING) {
-          return charged;
-        }
-        return true;
+        return quotaManager.chargeIfQuotaExceedAllowed(restRequest, null, requestCost);
       }
 
       @Override
@@ -156,6 +163,11 @@ public interface QuotaChargeCallback {
       @Override
       public QuotaMethod getQuotaMethod() {
         return QuotaUtils.getQuotaMethod(restRequest);
+      }
+
+      @Override
+      public QuotaConfig getQuotaConfig() {
+        return quotaManager.getQuotaConfig();
       }
     };
   }
@@ -207,4 +219,9 @@ public interface QuotaChargeCallback {
    * @return QuotaMethod object.
    */
   QuotaMethod getQuotaMethod();
+
+  /**
+   * @return QuotaConfig object.
+   */
+  QuotaConfig getQuotaConfig();
 }

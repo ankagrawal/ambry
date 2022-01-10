@@ -1158,6 +1158,7 @@ class PutOperation {
       try {
         isCharged = quotaChargeCallback.checkAndCharge(chunkBlobProperties.getBlobSize());
       } catch (QuotaException quotaException) {
+        // TODO we can get a 429 here due to storage quota, and in that case the operation should not go through and should be errored out.
         logger.warn("Could not charge quota during PutOperation for the chunk {} due to {}.", blobId.toString(),
             quotaException.toString());
         if (!quotaException.isRetryable()) {
@@ -1165,9 +1166,10 @@ class PutOperation {
           // We will return success to let the request go through.
           isCharged = true;
         }
+        return true;
       } catch (Exception ex) {
-        logger.warn("Could not charge quota during PutOperation for the chunk {} due to {}.", blobId.toString(),
-            ex.toString());
+        logger.warn("Could not charge quota during PutOperation {} due to {}.",
+            (blobId == null) ? "" : "for the chunk {}" + blobId.toString(), blobId.toString(), ex.toString());
         // In case of exception we don't set isCharged but let the request go through.
         return true;
       }
@@ -1189,6 +1191,7 @@ class PutOperation {
           // We will return success to let the request go through.
           isCharged = true;
         }
+        return true;
       } catch (Exception ex) {
         logger.warn("Could not charge quota during PutOperation for the chunk {} due to {}.", blobId.toString(),
             ex.toString());
@@ -1468,7 +1471,8 @@ class PutOperation {
       }
       if (done) {
         // the chunk is complete now. We can charge against quota for the chunk if its not a metadata chunk.
-        if (quotaChargeCallback != null && !(this instanceof MetadataPutChunk) && chunkException == null) {
+        if (quotaChargeCallback != null && !(this instanceof MetadataPutChunk) && chunkException == null
+            && !quotaChargeCallback.getQuotaConfig().chargeQuotaPreProcess) {
           try {
             quotaChargeCallback.checkAndCharge(chunkBlobProperties.getBlobSize());
           } catch (QuotaException qEx) {
@@ -1537,7 +1541,7 @@ class PutOperation {
         String hostname = replicaId.getDataNodeId().getHostname();
         Port port = RouterUtils.getPortToConnectTo(replicaId, routerConfig.routerEnableHttp2NetworkClient);
         PutRequest putRequest = createPutRequest();
-        RequestInfo request = new RequestInfo(hostname, port, putRequest, replicaId, null);
+        RequestInfo request = new RequestInfo(hostname, port, putRequest, replicaId, this);
         int correlationId = putRequest.getCorrelationId();
         correlationIdToChunkPutRequestInfo.put(correlationId,
             new ChunkPutRequestInfo(replicaId, putRequest, time.milliseconds()));

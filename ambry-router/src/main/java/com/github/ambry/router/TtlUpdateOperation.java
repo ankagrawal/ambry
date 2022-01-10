@@ -335,7 +335,7 @@ class TtlUpdateOperation {
         operationException.set(
             new RouterException("TtlUpdateOperation failed because of BlobNotFound", RouterErrorCode.BlobDoesNotExist));
       }
-      if (quotaChargeCallback != null) {
+      if (quotaChargeCallback != null && !quotaChargeCallback.getQuotaConfig().chargeQuotaPreProcess) {
         try {
           quotaChargeCallback.checkAndCharge();
         } catch (QuotaException qEx) {

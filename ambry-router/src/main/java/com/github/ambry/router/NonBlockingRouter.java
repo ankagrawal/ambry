@@ -172,6 +172,10 @@ class NonBlockingRouter implements Router {
     resourcesToClose.add(resource);
   }
 
+  List<OperationController> getAllOperationControllers() {
+    return ocList;
+  }
+
   /**
    * Returns an {@link OperationController}
    * @return a randomly picked {@link OperationController} from the list of OperationControllers.

@@ -27,7 +27,7 @@ import java.util.Map;
  * {@link QuotaRecommendation} recommendation is to throttle, and takes the max of retry after time interval. Also
  * groups the quota usage for all the quotas.
  *
- * This Policy also respect the settings in the {@link QuotaConfig}. If the {@link QuotaConfig#requestThrottlingEnabled} is
+ * This Policy also respect the settings in the {@link QuotaConfig}. If the {@link QuotaConfig#requestThrottlingFeatureEnabled} is
  * false, we don't throttle on {@link QuotaName#READ_CAPACITY_UNIT} and {@link QuotaName#WRITE_CAPACITY_UNIT}. If the
  * {@link StorageQuotaConfig#shouldThrottle} is false, we don't throttle on {@link QuotaName#STORAGE_IN_GB}.
  */
@@ -63,7 +63,7 @@ public class MaxThrottlePolicy implements ThrottlePolicy {
       boolean currentQuotaShouldThrottle = recommendation.shouldThrottle();
       if (recommendation.getQuotaName() == QuotaName.READ_CAPACITY_UNIT
           || recommendation.getQuotaName() == QuotaName.WRITE_CAPACITY_UNIT) {
-        currentQuotaShouldThrottle &= quotaConfig.requestThrottlingEnabled;
+        currentQuotaShouldThrottle &= quotaConfig.requestThrottlingFeatureEnabled;
       } else if (recommendation.getQuotaName() == QuotaName.STORAGE_IN_GB) {
         currentQuotaShouldThrottle &= quotaConfig.storageQuotaConfig.shouldThrottle;
       }

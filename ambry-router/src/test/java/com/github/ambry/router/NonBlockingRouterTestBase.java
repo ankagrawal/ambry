@@ -13,6 +13,7 @@
  */
 package com.github.ambry.router;
 
+import com.fasterxml.jackson.databind.annotation.JsonAppend;
 import com.github.ambry.account.InMemAccountService;
 import com.github.ambry.clustermap.MockClusterMap;
 import com.github.ambry.clustermap.ReplicaId;
@@ -153,8 +154,17 @@ public class NonBlockingRouterTestBase {
    * the {@link NonBlockingRouter}.
    * @return the created VerifiableProperties instance.
    */
+  protected Properties getNonBlockingRouterProperties(Properties properties, String routerDataCenter) {
+    return getNonBlockingRouterProperties(properties, routerDataCenter, PUT_REQUEST_PARALLELISM, DELETE_REQUEST_PARALLELISM);
+  }
+
+  /**
+   * Constructs and returns a VerifiableProperties instance with the defaults required for instantiating
+   * the {@link NonBlockingRouter}.
+   * @return the created VerifiableProperties instance.
+   */
   protected Properties getNonBlockingRouterProperties(String routerDataCenter) {
-    return getNonBlockingRouterProperties(routerDataCenter, PUT_REQUEST_PARALLELISM, DELETE_REQUEST_PARALLELISM);
+    return getNonBlockingRouterProperties(new Properties(), routerDataCenter, PUT_REQUEST_PARALLELISM, DELETE_REQUEST_PARALLELISM);
   }
 
   /**
@@ -165,9 +175,8 @@ public class NonBlockingRouterTestBase {
    * @param deleteParallelism delete request parallelism
    * @return the created VerifiableProperties instance.
    */
-  protected Properties getNonBlockingRouterProperties(String routerDataCenter, int putParallelism,
+  protected Properties getNonBlockingRouterProperties(Properties properties, String routerDataCenter, int putParallelism,
       int deleteParallelism) {
-    Properties properties = new Properties();
     properties.setProperty("router.hostname", "localhost");
     properties.setProperty("router.datacenter.name", routerDataCenter);
     properties.setProperty("router.put.request.parallelism", Integer.toString(putParallelism));
@@ -194,7 +203,15 @@ public class NonBlockingRouterTestBase {
    * router with them.
    */
   protected void setRouter() throws Exception {
-    setRouter(getNonBlockingRouterProperties("DC1"), mockServerLayout, new LoggingNotificationSystem());
+    setRouter(new Properties());
+  }
+
+  /**
+   * Construct {@link Properties} and {@link MockServerLayout} and initialize and set the
+   * router with them.
+   */
+  protected void setRouter(Properties routerProperties) throws Exception {
+    setRouter(getNonBlockingRouterProperties(routerProperties,"DC1"), mockServerLayout, new LoggingNotificationSystem());
   }
 
   /**
