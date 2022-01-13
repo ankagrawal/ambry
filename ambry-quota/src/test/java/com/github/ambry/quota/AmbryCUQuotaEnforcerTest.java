@@ -21,7 +21,7 @@ import com.github.ambry.config.QuotaConfig;
 import com.github.ambry.config.VerifiableProperties;
 import com.github.ambry.messageformat.BlobInfo;
 import com.github.ambry.messageformat.BlobProperties;
-import com.github.ambry.quota.capacityunit.JsonCUQuotaEnforcer;
+import com.github.ambry.quota.capacityunit.AmbryCUQuotaEnforcer;
 import com.github.ambry.quota.capacityunit.JsonCUQuotaSource;
 import com.github.ambry.rest.RestMethod;
 import com.github.ambry.rest.RestRequest;
@@ -37,13 +37,13 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 
-public class JsonCUQuotaEnforcerTest {
+public class AmbryCUQuotaEnforcerTest {
   private final static long WCU = 10;
   private final static long RCU = 10;
   private final static long FE_WCU = 1024;
   private final static long FE_RCU = 1024;
   private static final InMemAccountService ACCOUNT_SERVICE = new InMemAccountService(false, false);
-  private static JsonCUQuotaEnforcer AMBRY_QUOTA_ENFORCER;
+  private static AmbryCUQuotaEnforcer AMBRY_QUOTA_ENFORCER;
   private static ExceptionQuotaSource QUOTA_SOURCE;
   private static Account ACCOUNT;
 
@@ -58,7 +58,7 @@ public class JsonCUQuotaEnforcerTest {
         String.format("{\n" + "  \"wcu\": %d,\n" + "  \"rcu\": %d\n" + "}", FE_WCU, FE_RCU));
     QuotaConfig quotaConfig = new QuotaConfig(new VerifiableProperties(properties));
     QUOTA_SOURCE = new ExceptionQuotaSource(quotaConfig, ACCOUNT_SERVICE);
-    AMBRY_QUOTA_ENFORCER = new JsonCUQuotaEnforcer(QUOTA_SOURCE);
+    AMBRY_QUOTA_ENFORCER = new AmbryCUQuotaEnforcer(QUOTA_SOURCE);
   }
 
   @Test

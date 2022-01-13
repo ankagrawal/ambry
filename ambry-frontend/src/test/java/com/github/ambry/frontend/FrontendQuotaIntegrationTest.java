@@ -123,7 +123,7 @@ public class FrontendQuotaIntegrationTest extends FrontendIntegrationTestBase {
       boolean isRequestQuotaEnabled, QuotaMode quotaMode, Account account, boolean throttleRequest) throws IOException, GeneralSecurityException {
     Properties properties = buildFrontendVProps(trustStoreFile, true, PLAINTEXT_SERVER_PORT, SSL_SERVER_PORT);
     // By default the usage and limit of quota will be 0 in the default JsonCUQuotaSource, and hence the default
-    // JsonCUQuotaEnforcer will reject requests. So for cases where we don't want requests to be rejected, we set a
+    // AmbryCUQuotaEnforcer will reject requests. So for cases where we don't want requests to be rejected, we set a
     // non 0 limit for quota.
     JSONObject cuResourceQuotaJson = new JSONObject();
     JSONObject quotaJson = new JSONObject();

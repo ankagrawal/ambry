@@ -22,7 +22,6 @@ import com.github.ambry.quota.QuotaResource;
 import com.github.ambry.quota.QuotaSource;
 import com.github.ambry.quota.QuotaUtils;
 import com.github.ambry.rest.RestRequest;
-import com.github.ambry.rest.RestServiceException;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,8 +30,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Implementation of {@link QuotaEnforcer} for Capacity Units of Ambry resource.
  */
-public class JsonCUQuotaEnforcer implements QuotaEnforcer {
-  private static final Logger logger = LoggerFactory.getLogger(JsonCUQuotaEnforcer.class);
+public class AmbryCUQuotaEnforcer implements QuotaEnforcer {
+  private static final Logger logger = LoggerFactory.getLogger(AmbryCUQuotaEnforcer.class);
   private static final long THROTTLE_RETRY_AFTER_MS = 1;
   private static final long NO_THROTTLE_RETRY_AFTER_MS = -1;
   private static final int NO_THROTTLE_HTTP_STATUS = 200;
@@ -41,10 +40,10 @@ public class JsonCUQuotaEnforcer implements QuotaEnforcer {
   private final JsonCUQuotaSource quotaSource;
 
   /**
-   * Constructor for {@link JsonCUQuotaEnforcer}.
+   * Constructor for {@link AmbryCUQuotaEnforcer}.
    * @param quotaSource {@link QuotaSource} where the quota limit and usage will be saved and retrieved from.
    */
-  public JsonCUQuotaEnforcer(QuotaSource quotaSource) {
+  public AmbryCUQuotaEnforcer(QuotaSource quotaSource) {
     this.quotaSource = (JsonCUQuotaSource) quotaSource;
   }
 

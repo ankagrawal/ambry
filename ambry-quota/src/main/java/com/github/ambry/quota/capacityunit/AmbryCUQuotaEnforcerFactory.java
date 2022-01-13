@@ -21,24 +21,24 @@ import com.github.ambry.quota.QuotaSource;
 
 
 /**
- * A {@link QuotaEnforcerFactory} implementation for {@link JsonCUQuotaEnforcer}.
+ * A {@link QuotaEnforcerFactory} implementation for {@link AmbryCUQuotaEnforcer}.
  */
-public class JsonCUQuotaEnforcerFactory implements QuotaEnforcerFactory {
-  private final JsonCUQuotaEnforcer jsonCUQuotaEnforcer;
+public class AmbryCUQuotaEnforcerFactory implements QuotaEnforcerFactory {
+  private final AmbryCUQuotaEnforcer ambryCUQuotaEnforcer;
 
   /**
-   * Constructor for {@link JsonCUQuotaEnforcerFactory}.
+   * Constructor for {@link AmbryCUQuotaEnforcerFactory}.
    * @param quotaConfig {@link QuotaConfig} object.
    * @param quotaSource {@link QuotaSource} object.
    * @param accountStatsStore {@link AccountStatsStore} object.
    */
-  public JsonCUQuotaEnforcerFactory(QuotaConfig quotaConfig, QuotaSource quotaSource,
+  public AmbryCUQuotaEnforcerFactory(QuotaConfig quotaConfig, QuotaSource quotaSource,
       AccountStatsStore accountStatsStore) {
-    jsonCUQuotaEnforcer = new JsonCUQuotaEnforcer(quotaSource);
+    ambryCUQuotaEnforcer = new AmbryCUQuotaEnforcer(quotaSource);
   }
 
   @Override
   public QuotaEnforcer getRequestQuotaEnforcer() {
-    return jsonCUQuotaEnforcer;
+    return ambryCUQuotaEnforcer;
   }
 }
