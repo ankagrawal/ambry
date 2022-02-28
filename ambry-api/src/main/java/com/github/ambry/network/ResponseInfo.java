@@ -71,7 +71,8 @@ public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
    * @param dataNode the {@link DataNodeId} of this request.
    * @param quotaException the {@link QuotaException} object representing exception thrown for non quota compliant request.
    */
-  public ResponseInfo(RequestInfo requestInfo, NetworkClientErrorCode error, ByteBuf content, DataNodeId dataNode, QuotaException quotaException) {
+  public ResponseInfo(RequestInfo requestInfo, NetworkClientErrorCode error, ByteBuf content, DataNodeId dataNode,
+      QuotaException quotaException) {
     this.requestInfo = requestInfo;
     this.error = error;
     this.content = content;
