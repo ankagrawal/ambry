@@ -96,20 +96,21 @@ class AdaptiveOperationTracker extends SimpleOperationTracker {
   @Override
   public void onResponse(ReplicaId replicaId, TrackedRequestFinalState trackedRequestFinalState) {
     super.onResponse(replicaId, trackedRequestFinalState);
-    long elapsedTime;
-    if (unexpiredRequestSendTimes.containsKey(replicaId)) {
-      elapsedTime = time.milliseconds() - unexpiredRequestSendTimes.remove(replicaId).getSecond();
-    } else {
-      elapsedTime = time.milliseconds() - expiredRequestSendTimes.remove(replicaId);
-    }
-    if (trackedRequestFinalState != TrackedRequestFinalState.TIMED_OUT
-        || !routerConfig.routerOperationTrackerExcludeTimeoutEnabled) {
-      getLatencyHistogram(replicaId).update(elapsedTime);
-      if (routerConfig.routerOperationTrackerMetricScope != OperationTrackerScope.Datacenter) {
-        // This is only used to report whole datacenter histogram for monitoring purpose
-        Histogram histogram =
-            replicaId.getDataNodeId().getDatacenterName().equals(datacenterName) ? localDcHistogram : crossDcHistogram;
-        histogram.update(elapsedTime);
+    if(trackedRequestFinalState != TrackedRequestFinalState.QUOTA_REJECTED) {
+      long elapsedTime;
+      if (unexpiredRequestSendTimes.containsKey(replicaId)) {
+        elapsedTime = time.milliseconds() - unexpiredRequestSendTimes.remove(replicaId).getSecond();
+      } else {
+        elapsedTime = time.milliseconds() - expiredRequestSendTimes.remove(replicaId);
+      }
+      if (trackedRequestFinalState != TrackedRequestFinalState.TIMED_OUT || !routerConfig.routerOperationTrackerExcludeTimeoutEnabled) {
+        getLatencyHistogram(replicaId).update(elapsedTime);
+        if (routerConfig.routerOperationTrackerMetricScope != OperationTrackerScope.Datacenter) {
+          // This is only used to report whole datacenter histogram for monitoring purpose
+          Histogram histogram =
+              replicaId.getDataNodeId().getDatacenterName().equals(datacenterName) ? localDcHistogram : crossDcHistogram;
+          histogram.update(elapsedTime);
+        }
       }
     }
   }
