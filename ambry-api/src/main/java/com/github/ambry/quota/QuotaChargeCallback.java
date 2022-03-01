@@ -22,27 +22,16 @@ public interface QuotaChargeCallback {
    * Callback method that can be used to charge quota usage for a request or part of a request.
    * @param chunkSize of the chunk.
    * @throws QuotaException In case request needs to be throttled.
+   * @return
    */
-  void charge(long chunkSize) throws QuotaException;
+  QuotaAction checkAndCharge(boolean shouldCheckExceedAllowed, boolean forceCharge, long chunkSize) throws QuotaException;
 
   /**
    * Callback method that can be used to charge quota usage for a request or part of a request. Call this method
    * when the quota charge doesn't depend on the chunk size.
    * @throws QuotaException In case request needs to be throttled.
    */
-  void charge() throws QuotaException;
-
-  /**
-   * Check if request should be throttled based on quota usage.
-   * @return {@code true} if request usage exceeds limit and request should be throttled. {@code false} otherwise.
-   */
-  boolean check();
-
-  /**
-   * Check if usage is allowed to exceed the quota limit.
-   * @return {@code true} if usage is allowed to exceed the quota limit. {@code false} otherwise.
-   */
-  boolean quotaExceedAllowed();
+  QuotaAction checkAndCharge(boolean shouldCheckExceedAllowed, boolean forceCharge) throws QuotaException;
 
   /**
    * @return QuotaResource object.

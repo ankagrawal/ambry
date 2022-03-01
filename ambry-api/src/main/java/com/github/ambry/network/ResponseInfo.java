@@ -45,12 +45,13 @@ public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
   private Send response;
 
   /**
-   * Constructs a ResponseInfo with the given parameters.
-   * @param requestInfo the {@link RequestInfo} associated with this response.
-   * @param quotaException the {@link QuotaException} object representing exception thrown for non quota compliant request.
+   * Constructs a {@link ResponseInfo} with the given parameters. Use this constructor when exception is raised during
+   * quota compliance checks.
+   * @param requestInfo {@link RequestInfo} object.
+   * @param quotaException {@link QuotaException} object representing exception raised during quota compliance checks.
    */
   public ResponseInfo(RequestInfo requestInfo, QuotaException quotaException) {
-    this(requestInfo, null, null, requestInfo == null ? null : requestInfo.getReplicaId().getDataNodeId(), quotaException);
+    this(requestInfo, null, null, null, quotaException);
   }
 
   /**
@@ -69,7 +70,7 @@ public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
    * @param error the error encountered in sending this request, if there is any.
    * @param content the response received for this request.
    * @param dataNode the {@link DataNodeId} of this request.
-   * @param quotaException the {@link QuotaException} object representing exception thrown for non quota compliant request.
+   * @param quotaException {@link QuotaException} representing exception raised during quota compliance checks.
    */
   public ResponseInfo(RequestInfo requestInfo, NetworkClientErrorCode error, ByteBuf content, DataNodeId dataNode,
       QuotaException quotaException) {
@@ -128,7 +129,7 @@ public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
   }
 
   /**
-   * @return QuotaException object representing the exception thrown due to quota non compliance.
+   * @return QuotaException object representing the exception thrown during quota compliance checks.
    */
   public QuotaException getQuotaException() {
     return quotaException;

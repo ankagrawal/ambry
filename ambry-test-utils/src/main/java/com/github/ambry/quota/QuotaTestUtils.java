@@ -105,7 +105,7 @@ public class QuotaTestUtils {
   public static QuotaChargeCallback createDummyQuotaChargeCallback() {
     return new QuotaChargeCallback() {
       @Override
-      public void charge(long chunkSize) {
+      public QuotaAction checkAndCharge(long chunkSize) {
       }
 
       @Override

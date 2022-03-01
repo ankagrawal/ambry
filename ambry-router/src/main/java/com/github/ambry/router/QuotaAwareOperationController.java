@@ -20,7 +20,9 @@ import com.github.ambry.config.RouterConfig;
 import com.github.ambry.network.NetworkClient;
 import com.github.ambry.network.NetworkClientFactory;
 import com.github.ambry.network.RequestInfo;
+import com.github.ambry.network.ResponseInfo;
 import com.github.ambry.notification.NotificationSystem;
+import com.github.ambry.quota.QuotaException;
 import com.github.ambry.quota.QuotaMethod;
 import com.github.ambry.quota.QuotaResource;
 import com.github.ambry.quota.QuotaResourceType;
@@ -33,6 +35,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +49,7 @@ public class QuotaAwareOperationController extends OperationController {
   private static final QuotaResource UNKNOWN_QUOTA_RESOURCE = new QuotaResource("UNKNOWN", QuotaResourceType.ACCOUNT);
   private final Map<QuotaResource, LinkedList<RequestInfo>> readRequestQueue = new HashMap<>();
   private final Map<QuotaResource, LinkedList<RequestInfo>> writeRequestQueue = new HashMap<>();
+  private final Map<RequestInfo, QuotaException> nonCompliantRequests = new HashMap<>();
 
   /**
    * Constructor for {@link QuotaAwareOperationController} class.
@@ -145,12 +149,16 @@ public class QuotaAwareOperationController extends OperationController {
     while (!requestQueue.isEmpty()) {
       for (QuotaResource quotaResource : quotaResources) {
         RequestInfo requestInfo = requestQueue.get(quotaResource).getFirst();
-        if (!requestInfo.getChargeable().quotaExceedAllowed()) {
-          // If quota exceeded requests aren't allowed, then there is nothing more to do.
-          return;
+        try {
+          if (requestInfo.getChargeable().checkAndCharge(true)) {
+            requestsToSend.add(requestInfo);
+          } else {
+            // If quota exceeded requests aren't allowed, then there is nothing more to do.
+            return;
+          }
+        } catch (QuotaException quotaException) {
+          nonCompliantRequests.put(requestInfo, quotaException);
         }
-        requestInfo.getChargeable().charge();
-        requestsToSend.add(requestInfo);
         requestQueue.get(quotaResource).removeFirst();
         if (requestQueue.get(quotaResource).isEmpty()) {
           requestQueue.remove(quotaResource);
@@ -176,18 +184,32 @@ public class QuotaAwareOperationController extends OperationController {
       }
       while (!requestQueue.get(quotaResource).isEmpty()) {
         RequestInfo requestInfo = requestQueue.get(quotaResource).getFirst();
-        if (requestInfo.getChargeable().check()) {
-          requestsToSend.add(requestInfo);
-          requestQueue.get(quotaResource).removeFirst();
-          requestInfo.getChargeable().charge();
-        } else {
-          break;
+        try {
+          if (requestInfo.getChargeable().checkAndCharge(false)) {
+            requestsToSend.add(requestInfo);
+          } else {
+            // If quota exceeded requests aren't allowed, then there is nothing more to do.
+            break;
+          }
+        } catch (QuotaException quotaException) {
+          nonCompliantRequests.put(requestInfo, quotaException);
         }
       }
+      requestQueue.get(quotaResource).removeFirst();
       if (requestQueue.get(quotaResource).isEmpty()) {
         requestQueue.remove(quotaResource);
       }
     }
+  }
+
+  @Override
+  protected List<ResponseInfo> getNonQuotaCompliantResponses() {
+    List<ResponseInfo> nonCompliantResponses = nonCompliantRequests.entrySet()
+        .stream()
+        .map(entry -> new ResponseInfo(entry.getKey(), entry.getValue()))
+        .collect(Collectors.toList());
+    nonCompliantRequests.clear();
+    return nonCompliantResponses;
   }
 
   /**

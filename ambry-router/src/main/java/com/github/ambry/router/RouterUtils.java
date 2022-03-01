@@ -210,7 +210,7 @@ public class RouterUtils {
     }
     ReplicaId replicaId = responseInfo.getRequestInfo().getReplicaId();
     NetworkClientErrorCode networkClientErrorCode = responseInfo.getError();
-    if (networkClientErrorCode == null) {
+    if (networkClientErrorCode == null && responseInfo.getQuotaException() == null) {
       try {
         if (responseInfo.getResponse() != null) {
           // If this responseInfo already has the deserialized java object, we can reference it directly. This is
@@ -229,7 +229,10 @@ public class RouterUtils {
         routerMetrics.responseDeserializationErrorCount.inc();
       }
     } else {
-      responseHandler.onEvent(replicaId, networkClientErrorCode);
+      if(networkClientErrorCode != null) {
+        // notify cluser map about any replica related errors.
+        responseHandler.onEvent(replicaId, networkClientErrorCode);
+      }
     }
     return response;
   }

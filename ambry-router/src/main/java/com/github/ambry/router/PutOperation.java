@@ -1175,7 +1175,7 @@ class PutOperation {
         return true;
       }
       try {
-        quotaChargeCallback.charge(chunkBlobProperties.getBlobSize());
+        quotaChargeCallback.checkAndCharge(chunkBlobProperties.getBlobSize());
         isCharged = true;
       } catch (QuotaException quotaException) {
         logger.warn(String.format("Quota charging failed in GetBlobOperation for blob %s due to %s ", blobId.toString(),
@@ -1455,7 +1455,7 @@ class PutOperation {
         // the chunk is complete now. We can charge against quota for the chunk if its not a metadata chunk.
         if (quotaChargeCallback != null && !(this instanceof MetadataPutChunk) && chunkException == null) {
           try {
-            quotaChargeCallback.charge(chunkBlobProperties.getBlobSize());
+            quotaChargeCallback.checkAndCharge(chunkBlobProperties.getBlobSize());
           } catch (QuotaException quotaException) {
             // For now we only log for quota charge exceptions for in progress requests.
             logger.info("{}: Exception {} while handling quota charge event", loggingContext, quotaException.toString());

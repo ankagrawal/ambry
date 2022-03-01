@@ -122,7 +122,7 @@ public class NonBlockingRouterQuotaCallbackTest extends NonBlockingRouterTestBas
       // then the requests go through even in case of exception.
       QuotaChargeCallback quotaChargeCallback = new QuotaChargeCallback() {
         @Override
-        public void charge(long chunkSize) throws QuotaException {
+        public QuotaAction checkAndCharge(long chunkSize) throws QuotaException {
           listenerCalledCount.addAndGet(chunkSize);
           throw new QuotaException("exception during check and charge",
               new RouterException("Quota exceeded.", RouterErrorCode.TooManyRequests), false);
@@ -130,7 +130,7 @@ public class NonBlockingRouterQuotaCallbackTest extends NonBlockingRouterTestBas
 
         @Override
         public void charge() throws QuotaException {
-          charge(quotaAccountingSize);
+          checkAndCharge(quotaAccountingSize);
         }
 
         @Override

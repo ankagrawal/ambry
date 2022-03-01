@@ -39,6 +39,7 @@ import com.github.ambry.protocol.GetRequest;
 import com.github.ambry.protocol.GetResponse;
 import com.github.ambry.protocol.PartitionResponseInfo;
 import com.github.ambry.quota.Chargeable;
+import com.github.ambry.quota.QuotaAction;
 import com.github.ambry.quota.QuotaChargeCallback;
 import com.github.ambry.quota.QuotaException;
 import com.github.ambry.quota.QuotaMethod;
@@ -735,34 +736,18 @@ class GetBlobOperation extends GetOperation {
     }
 
     @Override
-    public boolean check() {
+    public QuotaAction checkAndCharge() {
       if (quotaChargeCallback == null || isCharged) {
-        return true;
-      }
-      return quotaChargeCallback.check();
-    }
-
-    @Override
-    public boolean charge() {
-      if (quotaChargeCallback == null || isCharged) {
-        return true;
+        return QuotaAction.ALLOW;
       }
       try {
-        quotaChargeCallback.charge(chunkSize);
+        quotaChargeCallback.checkAndCharge(chunkSize);
         isCharged = true;
       } catch (QuotaException quotaException) {
         logger.warn(String.format("Quota charging failed in GetBlobOperation for blob {} due to {} ", blobId.toString(),
             quotaException.toString()));
       }
       return isCharged;
-    }
-
-    @Override
-    public boolean quotaExceedAllowed() {
-      if(quotaChargeCallback == null) {
-        return true;
-      }
-      return quotaChargeCallback.quotaExceedAllowed();
     }
 
     @Override
@@ -912,11 +897,11 @@ class GetBlobOperation extends GetOperation {
         if (state != ChunkState.Complete && quotaChargeCallback != null && chunkException == null) {
           try {
             if (chunkSize != -1) {
-              quotaChargeCallback.charge(chunkSize);
+              quotaChargeCallback.checkAndCharge(chunkSize);
             } else {
               if (this instanceof FirstGetChunk && ((FirstGetChunk) this).blobType == BlobType.DataBlob
                   && blobInfo != null) {
-                quotaChargeCallback.charge(blobInfo.getBlobProperties().getBlobSize());
+                quotaChargeCallback.checkAndCharge(blobInfo.getBlobProperties().getBlobSize());
               }
               // other cases mean that either this was a metadata blob, or there was an error.
             }
@@ -985,7 +970,13 @@ class GetBlobOperation extends GetOperation {
       routerMetrics.routerRequestLatencyMs.update(requestLatencyMs);
       routerMetrics.getDataNodeBasedMetrics(getRequestInfo.replicaId.getDataNodeId()).getRequestLatencyMs.update(
           requestLatencyMs);
-      if (responseInfo.getError() != null) {
+      if(responseInfo.getQuotaException() != null) {
+        QuotaException quotaException = responseInfo.getQuotaException();
+        logger.trace("GetBlobRequest with response correlationId {} recieved quota exception {} ", correlationId,
+            quotaException.toString());
+        onQuotaErrorResponse(getRequestInfo.replicaId,
+            new RouterException(quotaException.getMessage(), RouterErrorCode.TooManyRequests));
+      } else if (responseInfo.getError() != null) {
         // responseInfo.getError() returns NetworkClientErrorCode. If error is not null, it probably means (1) connection
         // checkout timed out; (2) pending connection timed out; (3) established connection timed out. In all these cases,
         // the latency histogram in adaptive operation tracker should not be updated.
@@ -1167,6 +1158,18 @@ class GetBlobOperation extends GetOperation {
       setChunkException(exception);
       routerMetrics.routerRequestErrorCount.inc();
       routerMetrics.getDataNodeBasedMetrics(replicaId.getDataNodeId()).getRequestErrorCount.inc();
+    }
+
+    /**
+     * Perform the necessary actions when a request fails due to quota compliance.
+     * @param replicaId the {@link ReplicaId} associated with the failed response.
+     * @param exception the {@link RouterException} associated with the failed response.
+     */
+    private void onQuotaErrorResponse(ReplicaId replicaId, RouterException exception) {
+      chunkOperationTracker.onResponse(replicaId,
+          TrackedRequestFinalState.fromRouterErrorCodeToFinalState(exception.getErrorCode()));
+      setChunkException(exception);
+      routerMetrics.routerRequestErrorCount.inc();
     }
 
     /**

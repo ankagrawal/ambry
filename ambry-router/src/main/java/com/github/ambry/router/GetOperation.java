@@ -203,6 +203,8 @@ abstract class GetOperation {
         return 7;
       case BlobDoesNotExist:
         return 8;
+      case TooManyRequests:
+        return 9;
       default:
         return Integer.MIN_VALUE;
     }

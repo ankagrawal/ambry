@@ -36,6 +36,7 @@ import com.github.ambry.messageformat.MessageFormatRecord;
 import com.github.ambry.messageformat.MetadataContentSerDe;
 import com.github.ambry.notification.NotificationBlobType;
 import com.github.ambry.protocol.PutRequest;
+import com.github.ambry.quota.QuotaAction;
 import com.github.ambry.quota.QuotaChargeCallback;
 import com.github.ambry.quota.QuotaException;
 import com.github.ambry.quota.QuotaMethod;
@@ -397,7 +398,7 @@ public class PutManagerTest {
           throw new RuntimeException("Throwing an exception in the user callback");
         }, new QuotaChargeCallback() {
           @Override
-          public void charge(long chunkSize) {
+          public QuotaAction checkAndCharge(long chunkSize) {
           }
 
           @Override
