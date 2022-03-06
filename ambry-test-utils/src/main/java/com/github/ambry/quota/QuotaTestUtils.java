@@ -87,7 +87,8 @@ public class QuotaTestUtils {
       }
 
       @Override
-      public QuotaAction chargeAndRecommend(RestRequest restRequest, Map<QuotaName, Double> requestCostMap, boolean checkQuotaExceedAllowed, boolean forceCharge) {
+      public QuotaAction chargeAndRecommend(RestRequest restRequest, Map<QuotaName, Double> requestCostMap,
+          boolean checkQuotaExceedAllowed, boolean forceCharge) {
         return null;
       }
 
@@ -105,21 +106,13 @@ public class QuotaTestUtils {
   public static QuotaChargeCallback createDummyQuotaChargeCallback() {
     return new QuotaChargeCallback() {
       @Override
-      public QuotaAction checkAndCharge(long chunkSize) {
+      public QuotaAction checkAndCharge(boolean shouldCheckExceedAllowed, boolean forceCharge, long chunkSize) {
+        return QuotaAction.ALLOW;
       }
 
       @Override
-      public void charge() {
-      }
-
-      @Override
-      public boolean check() {
-        return false;
-      }
-
-      @Override
-      public boolean quotaExceedAllowed() {
-        return false;
+      public QuotaAction checkAndCharge(boolean shouldCheckExceedAllowed, boolean forceCharge) {
+        return QuotaAction.ALLOW;
       }
 
       @Override
@@ -130,6 +123,11 @@ public class QuotaTestUtils {
       @Override
       public QuotaMethod getQuotaMethod() {
         return null;
+      }
+
+      @Override
+      public QuotaConfig getQuotaConfig() {
+        return new QuotaConfig(new VerifiableProperties(new Properties()));
       }
     };
   }

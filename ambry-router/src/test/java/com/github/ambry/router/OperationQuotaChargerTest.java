@@ -16,6 +16,7 @@ package com.github.ambry.router;
 import com.github.ambry.clustermap.Partition;
 import com.github.ambry.clustermap.PartitionState;
 import com.github.ambry.commons.BlobId;
+import com.github.ambry.quota.QuotaAction;
 import com.github.ambry.quota.QuotaChargeCallback;
 import com.github.ambry.quota.QuotaException;
 import com.github.ambry.quota.QuotaResource;
@@ -30,84 +31,12 @@ import org.mockito.Mockito;
 public class OperationQuotaChargerTest {
   private final BlobId BLOBID = new BlobId((short) 1, BlobId.BlobIdType.NATIVE, (byte) 1, (short) 1, (short) 1,
       new Partition((short) 1, "", PartitionState.READ_ONLY, 1073741824L), false, BlobId.BlobDataType.DATACHUNK);
+  private final QuotaResource QUOTA_RESOURCE = new QuotaResource("test", QuotaResourceType.ACCOUNT);
 
   @Test
-  public void testCheck() throws Exception {
-    // check should return true if quotaChargeCallback is null.
-    OperationQuotaCharger operationQuotaCharger = new OperationQuotaCharger(null, BLOBID, "GetOperation");
-    Assert.assertTrue("check should return true if quotaChargeCallback is null.", operationQuotaCharger.check());
-
-    QuotaChargeCallback quotaChargeCallback = Mockito.mock(QuotaChargeCallback.class);
-    operationQuotaCharger = new OperationQuotaCharger(quotaChargeCallback, BLOBID, "GetOperation");
-
-    // check should return true if quotaChargeCallback returns true.
-    Mockito.when(quotaChargeCallback.check()).thenReturn(true);
-    Assert.assertTrue("check should return true if quotaChargeCallback returns true.", operationQuotaCharger.check());
-
-    // check should return false if quotaChargeCallback returns false.
-    Mockito.when(quotaChargeCallback.check()).thenReturn(false);
-    Assert.assertFalse("check should return false if quotaChargeCallback returns false.",
-        operationQuotaCharger.check());
-
-    // check should return false even if quotaChargeCallback returns false when isCharged is true.
-    Mockito.doNothing().when(quotaChargeCallback).charge();
-    operationQuotaCharger.charge(); // sets isCharged to true.
-    Mockito.when(quotaChargeCallback.check()).thenReturn(false);
-    Assert.assertTrue("check should return true even if quotaChargeCallback returns false when isCharged is true.",
-        operationQuotaCharger.check());
-  }
-
-  @Test
-  public void testCharge() throws Exception {
-    // charge should return true if quotaChargeCallback is null.
-    OperationQuotaCharger operationQuotaCharger = new OperationQuotaCharger(null, BLOBID, "GetOperation");
-    Assert.assertTrue("charge should return true if quotaChargeCallback is null.", operationQuotaCharger.charge());
-
-    QuotaChargeCallback quotaChargeCallback = Mockito.mock(QuotaChargeCallback.class);
-    operationQuotaCharger = new OperationQuotaCharger(quotaChargeCallback, BLOBID, "GetOperation");
-
-    // charge should return false if quotaChargeCallback throws exception and isCharged is false.
-    Mockito.doThrow(
-        new QuotaException("too many requests", new RouterException("", RouterErrorCode.TooManyRequests), true))
-        .when(quotaChargeCallback)
-        .charge();
-    Assert.assertFalse("charge should return true if quotaChargeCallback throws exception and isCharged is false.",
-        operationQuotaCharger.charge());
-    Mockito.verify(quotaChargeCallback, Mockito.times(1)).charge();
-
-    // charge should return true if quotaChargeCallback.charge goes through.
-    Mockito.doNothing().when(quotaChargeCallback).charge();
-    Assert.assertTrue("charge should return true if quotaChargeCallback.charge goes through.",
-        operationQuotaCharger.charge());
-    Mockito.verify(quotaChargeCallback, Mockito.times(2)).charge();
-
-    // Once isCharged is true, charge should never call quotaChargeCallback.charge.
-    Mockito.doNothing().when(quotaChargeCallback).charge();
-    Assert.assertTrue("Once isCharged is true, charge should never call quotaChargeCallback.charge.",
-        operationQuotaCharger.charge());
-    Mockito.verify(quotaChargeCallback, Mockito.times(2)).charge();
-  }
-
-  @Test
-  public void testQuotaExceedAllowed() throws Exception {
-    // quotaExceedAllowed should return true if quotaChargeCallback is null.
-    OperationQuotaCharger operationQuotaCharger = new OperationQuotaCharger(null, BLOBID, "GetOperation");
-    Assert.assertTrue("quotaExceedAllowed should return true if quotaChargeCallback is null.",
-        operationQuotaCharger.quotaExceedAllowed());
-
-    QuotaChargeCallback quotaChargeCallback = Mockito.mock(QuotaChargeCallback.class);
-    operationQuotaCharger = new OperationQuotaCharger(quotaChargeCallback, BLOBID, "GetOperation");
-
-    // quotaExceedAllowed should return true if quotaChargeCallback.quotaExceedAllowed returns true.
-    Mockito.when(quotaChargeCallback.quotaExceedAllowed()).thenReturn(true);
-    Assert.assertTrue("quotaExceedAllowed should return true if quotaChargeCallback.quotaExceedAllowed returns true.",
-        operationQuotaCharger.quotaExceedAllowed());
-
-    // quotaExceedAllowed should return false if quotaChargeCallback.quotaExceedAllowed returns false.
-    Mockito.when(quotaChargeCallback.quotaExceedAllowed()).thenReturn(false);
-    Assert.assertFalse(
-        "quotaExceedAllowed should return false if quotaChargeCallback.quotaExceedAllowed returns false.",
-        operationQuotaCharger.quotaExceedAllowed());
+  public void testCheckAndCharge() throws Exception {
+    testCheckAndCharge(true);
+    testCheckAndCharge(false);
   }
 
   @Test
@@ -132,5 +61,65 @@ public class OperationQuotaChargerTest {
             new QuotaException("", new RestServiceException("", RestServiceErrorCode.InternalServerError), false));
     Assert.assertNull("getQuotaResource should return null if quotaChargeCallback is null.",
         operationQuotaCharger.getQuotaResource());
+  }
+
+  private void testCheckAndCharge(boolean shouldCheckExceedAllowed) throws Exception {
+    // checkAndCharge should return allow if quotaChargeCallback is null.
+    OperationQuotaCharger operationQuotaCharger = new OperationQuotaCharger(null, BLOBID, "GetOperation");
+    Assert.assertEquals("checkAndCharge should return allow if quotaChargeCallback is null.", QuotaAction.ALLOW,
+        operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed));
+
+    QuotaChargeCallback quotaChargeCallback = Mockito.mock(QuotaChargeCallback.class);
+    Mockito.when(quotaChargeCallback.getQuotaResource()).thenReturn(QUOTA_RESOURCE);
+    operationQuotaCharger = new OperationQuotaCharger(quotaChargeCallback, BLOBID, "GetOperation");
+
+    // checkAndCharge should return allow if quotaChargeCallback returns ALLOW.
+    Mockito.when(quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false)).thenReturn(QuotaAction.ALLOW);
+    Assert.assertEquals("checkAndCharge should return allow if quotaChargeCallback returns true.", QuotaAction.ALLOW,
+        operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed));
+
+    operationQuotaCharger = new OperationQuotaCharger(quotaChargeCallback, BLOBID, "GetOperation");
+    // checkAndCharge should return delay if quotaChargeCallback returns DELAY.
+    Mockito.when(quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false)).thenReturn(QuotaAction.DELAY);
+    Assert.assertEquals("checkAndCharge should return delay if quotaChargeCallback returns delay.", QuotaAction.DELAY,
+        operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed));
+
+    // checkAndCharge should return allow if quotaChargeCallback returns delay but isCharged is true.
+    Mockito.when(quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false)).thenReturn(QuotaAction.ALLOW);
+    operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed); // sets isCharged to true.
+    Mockito.when(quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false)).thenReturn(QuotaAction.DELAY);
+    Assert.assertEquals(
+        "checkAndCharge should return allow if quotaChargeCallback returns DELAY but isCharged is true.",
+        QuotaAction.ALLOW, operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed));
+
+    operationQuotaCharger = new OperationQuotaCharger(quotaChargeCallback, BLOBID, "GetOperation");
+    // checkAndCharge should return REJECT if quotaChargeCallback returns REJECT.
+    Mockito.when(quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false)).thenReturn(QuotaAction.REJECT);
+    Assert.assertEquals(
+        "checkAndCharge should return reject if quotaChargeCallback returns DELAY but isCharged is true.",
+        QuotaAction.REJECT, operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed));
+
+    // checkAndCharge should return allow if quotaChargeCallback returns REJECT but isCharged is true.
+    Mockito.when(quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false)).thenReturn(QuotaAction.ALLOW);
+    operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed); // sets isCharged to true.
+    Mockito.when(quotaChargeCallback.checkAndCharge(false, false)).thenReturn(QuotaAction.REJECT);
+    Assert.assertEquals(
+        "checkAndCharge should return allow if quotaChargeCallback returns REJECT but isCharged is true.",
+        QuotaAction.ALLOW, operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed));
+
+    operationQuotaCharger = new OperationQuotaCharger(quotaChargeCallback, BLOBID, "GetOperation");
+    // test if any exception is thrown in quota charge callback.
+    Mockito.when(quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false))
+        .thenThrow(new QuotaException("test", false));
+    // exception should not propagate.
+    Assert.assertEquals("checkAndCharge should return allow if there is any exception from quotachargecallback.",
+        QuotaAction.ALLOW, operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed));
+
+    Mockito.doReturn(QuotaAction.ALLOW).when(quotaChargeCallback).checkAndCharge(shouldCheckExceedAllowed, false);
+    operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed); // sets isCharged to true.
+    Mockito.when(quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false))
+        .thenThrow(new QuotaException("test", false));
+    Assert.assertEquals("checkAndCharge should return allow if there is any exception from quotachargecallback.",
+        QuotaAction.ALLOW, operationQuotaCharger.checkAndCharge(shouldCheckExceedAllowed));
   }
 }

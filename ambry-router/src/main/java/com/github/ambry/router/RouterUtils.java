@@ -205,12 +205,12 @@ public class RouterUtils {
       NonBlockingRouterMetrics routerMetrics, ResponseInfo responseInfo, Deserializer<R> deserializer,
       Function<R, ServerErrorCode> errorExtractor) {
     R response = null;
-    if(responseInfo.getQuotaException() != null) {
+    if(responseInfo.isQuotaRejected()) {
       return response;
     }
     ReplicaId replicaId = responseInfo.getRequestInfo().getReplicaId();
     NetworkClientErrorCode networkClientErrorCode = responseInfo.getError();
-    if (networkClientErrorCode == null && responseInfo.getQuotaException() == null) {
+    if (networkClientErrorCode == null) {
       try {
         if (responseInfo.getResponse() != null) {
           // If this responseInfo already has the deserialized java object, we can reference it directly. This is
@@ -229,10 +229,7 @@ public class RouterUtils {
         routerMetrics.responseDeserializationErrorCount.inc();
       }
     } else {
-      if(networkClientErrorCode != null) {
-        // notify cluser map about any replica related errors.
-        responseHandler.onEvent(replicaId, networkClientErrorCode);
-      }
+      responseHandler.onEvent(replicaId, networkClientErrorCode);
     }
     return response;
   }

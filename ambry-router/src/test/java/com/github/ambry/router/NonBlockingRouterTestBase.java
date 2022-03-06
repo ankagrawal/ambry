@@ -21,6 +21,7 @@ import com.github.ambry.commons.ByteBufferReadableStreamChannel;
 import com.github.ambry.commons.LoggingNotificationSystem;
 import com.github.ambry.config.CryptoServiceConfig;
 import com.github.ambry.config.KMSConfig;
+import com.github.ambry.config.QuotaConfig;
 import com.github.ambry.config.RouterConfig;
 import com.github.ambry.config.VerifiableProperties;
 import com.github.ambry.messageformat.BlobProperties;
@@ -205,6 +206,7 @@ public class NonBlockingRouterTestBase {
    */
   protected void setRouter(Properties props, MockServerLayout serverLayout, NotificationSystem notificationSystem)
       throws Exception {
+    props.setProperty(RouterConfig.OPERATION_CONTROLLER, QuotaAwareOperationController.class.getCanonicalName());
     VerifiableProperties verifiableProperties = new VerifiableProperties((props));
     routerConfig = new RouterConfig(verifiableProperties);
     routerMetrics = new NonBlockingRouterMetrics(mockClusterMap, routerConfig);
@@ -221,14 +223,18 @@ public class NonBlockingRouterTestBase {
     setOperationParams(PUT_CONTENT_SIZE, TTL_SECS);
   }
 
+  protected void setOperationParams(int putContentSize, long ttlSecs) {
+    setOperationParams(putContentSize, ttlSecs, Utils.getRandomShort(TestUtils.RANDOM), Utils.getRandomShort(TestUtils.RANDOM));
+  }
+
   /**
    * Setup test suite to perform a {@link Router#putBlob} call.
    * @param putContentSize the size of the content to put
    * @param ttlSecs the TTL in seconds for the blob.
    */
-  protected void setOperationParams(int putContentSize, long ttlSecs) {
+  protected void setOperationParams(int putContentSize, long ttlSecs, short accountId, short containerId) {
     putBlobProperties = new BlobProperties(-1, "serviceId", "memberId", "contentType", false, ttlSecs,
-        Utils.getRandomShort(TestUtils.RANDOM), Utils.getRandomShort(TestUtils.RANDOM), testEncryption, null, null,
+        accountId, containerId, testEncryption, null, null,
         null);
     putUserMetadata = new byte[USER_METADATA_SIZE];
     random.nextBytes(putUserMetadata);

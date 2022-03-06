@@ -465,7 +465,7 @@ public class OperationController implements Runnable {
           DataNodeId dataNodeId = responseInfo.getDataNode();
           responseHandler.onConnectionTimeout(dataNodeId);
         } else {
-          if(responseInfo.getQuotaException() == null) {
+          if(!responseInfo.isQuotaRejected()) {
             long responseReceiveTime = requestInfo.getStreamHeaderFrameReceiveTime();
             if (responseReceiveTime != -1) {
               routerMetrics.responseReceiveToHandleLatencyMs.update(System.currentTimeMillis() - responseReceiveTime);

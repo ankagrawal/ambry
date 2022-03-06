@@ -13,8 +13,11 @@
  */
 package com.github.ambry.quota;
 
+import com.github.ambry.config.QuotaConfig;
 import com.github.ambry.rest.RestRequest;
 import com.github.ambry.router.RouterErrorCode;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +36,6 @@ public class PreProcessQuotaChargeCallback implements QuotaChargeCallback {
   private final QuotaManager quotaManager;
   private final RestRequest restRequest;
   private final RequestQuotaCostPolicy requestCostPolicy;
-  private final boolean isQuotaEnforcedOnRequest;
 
   /**
    * Constructor for {@link PreProcessQuotaChargeCallback}.
@@ -47,36 +49,37 @@ public class PreProcessQuotaChargeCallback implements QuotaChargeCallback {
     this.quotaManager = quotaManager;
     requestCostPolicy = new SimpleRequestQuotaCostPolicy(quotaManager.getQuotaConfig());
     this.restRequest = restRequest;
-    this.isQuotaEnforcedOnRequest = isQuotaEnforcedOnRequest;
   }
 
   @Override
-  public QuotaAction checkAndCharge(long chunkSize) {
-
+  public QuotaAction checkAndCharge(boolean shouldCheckQuotaExceedAllowed, boolean forceCharge, long chunkSize)
+      throws QuotaException {
+    QuotaAction quotaAction = QuotaAction.ALLOW;
+    Map<QuotaName, Double> requestCost = requestCostPolicy.calculateRequestQuotaCharge(restRequest, chunkSize)
+        .entrySet()
+        .stream()
+        .collect(Collectors.toMap(entry -> QuotaName.valueOf(entry.getKey()), Map.Entry::getValue));
+    return quotaManager.chargeAndRecommend(restRequest, requestCost, false, true);
   }
 
   @Override
-  public void charge() {
-
+  public QuotaAction checkAndCharge(boolean shouldCheckQuotaExceedAllowed, boolean forceCharge) throws QuotaException {
+    return checkAndCharge(shouldCheckQuotaExceedAllowed, forceCharge,
+        quotaManager.getQuotaConfig().quotaAccountingUnit);
   }
 
   @Override
-  public boolean check() {
-    return false;
-  }
-
-  @Override
-  public boolean quotaExceedAllowed() {
-    return false;
-  }
-
-  @Override
-  public QuotaResource getQuotaResource() {
-    return null;
+  public QuotaResource getQuotaResource() throws QuotaException {
+    return QuotaResource.fromRestRequest(restRequest);
   }
 
   @Override
   public QuotaMethod getQuotaMethod() {
-    return null;
+    return QuotaUtils.getQuotaMethod(restRequest);
+  }
+
+  @Override
+  public QuotaConfig getQuotaConfig() {
+    return quotaManager.getQuotaConfig();
   }
 }

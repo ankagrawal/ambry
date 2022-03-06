@@ -15,6 +15,7 @@ package com.github.ambry.router;
 
 import com.github.ambry.commons.BlobId;
 import com.github.ambry.quota.Chargeable;
+import com.github.ambry.quota.QuotaAction;
 import com.github.ambry.quota.QuotaChargeCallback;
 import com.github.ambry.quota.QuotaException;
 import com.github.ambry.quota.QuotaMethod;
@@ -26,6 +27,8 @@ import org.slf4j.LoggerFactory;
 /**
  * {@link Chargeable} implementation for cases (Undelete, Delete, UpdateTtl, GetBlobInfo) where quota is charged just once for entire operation.
  */
+// TODO Chargeable should handle all QuotaException. Chargeable should throw QuotaException only if it wants to reject.
+// TODO Add more javadocs about the behavior of the API.
 public class OperationQuotaCharger implements Chargeable {
   private static final Logger LOGGER = LoggerFactory.getLogger(OperationQuotaCharger.class);
   private final QuotaChargeCallback quotaChargeCallback;
@@ -48,34 +51,22 @@ public class OperationQuotaCharger implements Chargeable {
   }
 
   @Override
-  public boolean check() {
+  public QuotaAction checkAndCharge(boolean shouldCheckExceedAllowed) {
+    QuotaAction quotaAction = QuotaAction.ALLOW;
     if (quotaChargeCallback == null || isCharged) {
-      return true;
-    }
-    return quotaChargeCallback.check();
-  }
-
-  @Override
-  public boolean charge() {
-    if (quotaChargeCallback == null || isCharged) {
-      return true;
+      return quotaAction;
     }
     try {
-      quotaChargeCallback.charge();
-      isCharged = true;
+      quotaAction = quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false);
+      isCharged = quotaAction == QuotaAction.ALLOW;
     } catch (QuotaException quotaException) {
-      LOGGER.warn(String.format("Quota charging failed in {} for blob {} due to {}.", operationName, blobId.toString(),
+      // When there is an exception, we let the request through, because we don't want to affect user's request due to
+      // any issue with quota system. But we don't set isCharged flag to true, so that if charging is attempted again
+      // (due to chunk request parallelism), the charge can be passed down.
+      LOGGER.warn(String.format("Quota charging failed in %s for blob %s due to %s.", operationName, blobId.toString(),
           quotaException.toString()));
     }
-    return isCharged;
-  }
-
-  @Override
-  public boolean quotaExceedAllowed() {
-    if (quotaChargeCallback == null) {
-      return true;
-    }
-    return quotaChargeCallback.quotaExceedAllowed();
+    return quotaAction;
   }
 
   @Override

@@ -13,6 +13,7 @@
  */
 package com.github.ambry.quota;
 
+import com.github.ambry.config.QuotaConfig;
 import com.github.ambry.rest.RestRequest;
 import com.github.ambry.router.RouterErrorCode;
 import com.github.ambry.router.RouterException;
@@ -54,12 +55,13 @@ public class PostProcessQuotaChargeCallback implements QuotaChargeCallback {
 
   @Override
   public QuotaAction checkAndCharge(boolean shouldCheckQuotaExceedAllowed, boolean forceCharge, long chunkSize) throws QuotaException {
+    QuotaAction quotaAction = QuotaAction.ALLOW;
     try {
       Map<QuotaName, Double> requestCost = requestCostPolicy.calculateRequestQuotaCharge(restRequest, chunkSize)
           .entrySet()
           .stream()
           .collect(Collectors.toMap(entry -> QuotaName.valueOf(entry.getKey()), Map.Entry::getValue));
-      QuotaAction quotaAction = quotaManager.chargeAndRecommend(restRequest, requestCost, false, true);
+      quotaAction = quotaManager.chargeAndRecommend(restRequest, requestCost, false, true);
       if (QuotaUtils.shouldThrottle(quotaAction) && isQuotaEnforcedOnRequest) {
         if (quotaManager.getQuotaMode() == QuotaMode.THROTTLING
             && quotaManager.getQuotaConfig().throttleInProgressRequests) {
@@ -76,6 +78,7 @@ public class PostProcessQuotaChargeCallback implements QuotaChargeCallback {
       }
       LOGGER.error("Unexpected exception while charging quota.", ex);
     }
+    return quotaAction;
   }
 
   @Override
@@ -91,5 +94,10 @@ public class PostProcessQuotaChargeCallback implements QuotaChargeCallback {
   @Override
   public QuotaMethod getQuotaMethod() {
     return QuotaUtils.getQuotaMethod(restRequest);
+  }
+
+  @Override
+  public QuotaConfig getQuotaConfig() {
+    return quotaManager.getQuotaConfig();
   }
 }

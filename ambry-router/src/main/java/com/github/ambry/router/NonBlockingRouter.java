@@ -44,13 +44,13 @@ import org.slf4j.LoggerFactory;
 /**
  * Streaming, non-blocking router implementation for Ambry.
  */
-class NonBlockingRouter implements Router {
+public class NonBlockingRouter implements Router {
   static final AtomicInteger currentOperationsCount = new AtomicInteger(0);
   static final int SHUTDOWN_WAIT_MS = 10 * Time.MsPerSec;
   static final AtomicInteger correlationIdGenerator = new AtomicInteger(0);
   private static final Logger logger = LoggerFactory.getLogger(NonBlockingRouter.class);
   final AtomicBoolean isOpen = new AtomicBoolean(true);
-  private final ArrayList<OperationController> ocList;
+  protected final ArrayList<OperationController> ocList;
   private final BackgroundDeleter backgroundDeleter;
   private final int ocCount;
   // Shared with the operation managers.
@@ -80,7 +80,7 @@ class NonBlockingRouter implements Router {
    * @throws IOException if the OperationController could not be successfully created.
    * @throws ReflectiveOperationException if the OperationController could not be successfully created.
    */
-  NonBlockingRouter(RouterConfig routerConfig, NonBlockingRouterMetrics routerMetrics,
+  protected NonBlockingRouter(RouterConfig routerConfig, NonBlockingRouterMetrics routerMetrics,
       NetworkClientFactory networkClientFactory, NotificationSystem notificationSystem, ClusterMap clusterMap,
       KeyManagementService kms, CryptoService cryptoService, CryptoJobHandler cryptoJobHandler,
       AccountService accountService, Time time, String defaultPartitionClass)

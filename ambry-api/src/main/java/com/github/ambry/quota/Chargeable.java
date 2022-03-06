@@ -24,7 +24,7 @@ public interface Chargeable {
    * @param shouldCheckExceedAllowed if {@code true} then it should be checked if usage is allowed to exceed quota.
    * @return QuotaAction representing the recommended action to take.
    */
-  boolean checkAndCharge(boolean shouldCheckExceedAllowed) throws QuotaException;
+  QuotaAction checkAndCharge(boolean shouldCheckExceedAllowed);
 
   /**
    * @return the {@link QuotaResource} whose operation is being charged.

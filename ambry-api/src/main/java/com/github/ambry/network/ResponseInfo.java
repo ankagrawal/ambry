@@ -14,7 +14,6 @@
 package com.github.ambry.network;
 
 import com.github.ambry.clustermap.DataNodeId;
-import com.github.ambry.quota.QuotaException;
 import com.github.ambry.utils.AbstractByteBufHolder;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
@@ -26,14 +25,14 @@ import io.netty.util.ReferenceCountUtil;
  * Request associated with this response.
  * Either a non-null exception if there was an error sending the request or a non-null ByteBuffer containing the
  * successful response received for this request.
- * A non-null {@link QuotaException} if the request was rejected due to quota non compliance.
+ * A flag to indicate if this request was not rejected due quota non-compliance.
  * The {@link DataNodeId} to which the request is issued.
  */
 public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
   private final RequestInfo requestInfo;
   private final NetworkClientErrorCode error;
   private final DataNodeId dataNode;
-  private final QuotaException quotaException;
+  private final boolean quotaRejected;
 
   /**
    * Response received from network in the form of serialized bytes.
@@ -48,10 +47,10 @@ public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
    * Constructs a {@link ResponseInfo} with the given parameters. Use this constructor when exception is raised during
    * quota compliance checks.
    * @param requestInfo {@link RequestInfo} object.
-   * @param quotaException {@link QuotaException} object representing exception raised during quota compliance checks.
+   * @param quotaRejected {@code true} if this request was rejected due quota non-compliance. {@code false} otherwise.
    */
-  public ResponseInfo(RequestInfo requestInfo, QuotaException quotaException) {
-    this(requestInfo, null, null, null, quotaException);
+  public ResponseInfo(RequestInfo requestInfo, boolean quotaRejected) {
+    this(requestInfo, null, null, null, quotaRejected);
   }
 
   /**
@@ -61,7 +60,7 @@ public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
    * @param content the response received for this request.
    */
   public ResponseInfo(RequestInfo requestInfo, NetworkClientErrorCode error, ByteBuf content) {
-    this(requestInfo, error, content, requestInfo == null ? null : requestInfo.getReplicaId().getDataNodeId(), null);
+    this(requestInfo, error, content, requestInfo == null ? null : requestInfo.getReplicaId().getDataNodeId(), false);
   }
 
   /**
@@ -70,15 +69,15 @@ public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
    * @param error the error encountered in sending this request, if there is any.
    * @param content the response received for this request.
    * @param dataNode the {@link DataNodeId} of this request.
-   * @param quotaException {@link QuotaException} representing exception raised during quota compliance checks.
+   * @param quotaRejected {@code true} if this request was rejected due quota non-compliance. {@code false} otherwise.
    */
   public ResponseInfo(RequestInfo requestInfo, NetworkClientErrorCode error, ByteBuf content, DataNodeId dataNode,
-      QuotaException quotaException) {
+      boolean quotaRejected) {
     this.requestInfo = requestInfo;
     this.error = error;
     this.content = content;
     this.dataNode = dataNode;
-    this.quotaException = quotaException;
+    this.quotaRejected = quotaRejected;
   }
 
   /**
@@ -96,7 +95,7 @@ public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
     this.content = null;
     this.dataNode = dataNode;
     this.response = response;
-    this.quotaException = null;
+    this.quotaRejected = false;
   }
 
   /**
@@ -129,10 +128,11 @@ public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
   }
 
   /**
-   * @return QuotaException object representing the exception thrown during quota compliance checks.
+   * @return the quotaRejected flag. {@code true} if this request was rejected due quota non-compliance.
+   * {@code false} otherwise.
    */
-  public QuotaException getQuotaException() {
-    return quotaException;
+  public boolean isQuotaRejected() {
+    return quotaRejected;
   }
 
   @Override
@@ -148,7 +148,7 @@ public class ResponseInfo extends AbstractByteBufHolder<ResponseInfo> {
 
   @Override
   public ResponseInfo replace(ByteBuf content) {
-    return new ResponseInfo(requestInfo, error, content, dataNode, quotaException);
+    return new ResponseInfo(requestInfo, error, content, dataNode, quotaRejected);
   }
 
   /**

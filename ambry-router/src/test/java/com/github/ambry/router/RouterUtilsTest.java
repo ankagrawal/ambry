@@ -157,7 +157,7 @@ public class RouterUtilsTest {
 
   @Test
   public void testExtractResponseAndNotifyResponseHandler() {
-    ResponseInfo responseInfo = new ResponseInfo(null, new QuotaException("test exception", false));
+    ResponseInfo responseInfo = new ResponseInfo(null, true);
     assertNull(RouterUtils.extractResponseAndNotifyResponseHandler(null, null, responseInfo, null, null));
   }
 }

@@ -70,8 +70,7 @@ public class ChunkFillTest {
   private MockKeyManagementService kms = null;
   private MockCryptoService cryptoService = null;
   private CryptoJobHandler cryptoJobHandler = null;
-  private final QuotaChargeCallback quotaChargeCallback =
-      QuotaTestUtils.createDummyQuotaChargeCallback();
+  private final QuotaChargeCallback quotaChargeCallback = QuotaTestUtils.createDummyQuotaChargeCallback();
 
   /**
    * Running for both regular and encrypted blobs

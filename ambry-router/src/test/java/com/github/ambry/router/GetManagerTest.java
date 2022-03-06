@@ -83,8 +83,7 @@ public class GetManagerTest {
   private ReadableStreamChannel putChannel;
   private GetBlobOptions options = new GetBlobOptionsBuilder().build();
   private List<ChunkInfo> chunkInfos;
-  private final QuotaChargeCallback quotaChargeCallback =
-      QuotaTestUtils.createDummyQuotaChargeCallback();
+  private final QuotaChargeCallback quotaChargeCallback = QuotaTestUtils.createDummyQuotaChargeCallback();
 
   /**
    * Pre-initialization common to all tests.

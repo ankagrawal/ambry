@@ -76,7 +76,7 @@ import static org.junit.Assert.*;
  * Integration tests for Ambry frontend with quota.
  */
 @RunWith(Parameterized.class)
-public class FrontendQuotaIntegrationTest extends FrontendIntegrationTestBase {
+public class FrontendPostProcessQuotaIntegrationTest extends FrontendIntegrationTestBase {
   private static final String DEFAULT_PARTITION_CLASS = "default-partition-class";
   private static final MockClusterMap CLUSTER_MAP;
   private static final VerifiableProperties FRONTEND_VERIFIABLE_PROPS;
@@ -95,7 +95,7 @@ public class FrontendQuotaIntegrationTest extends FrontendIntegrationTestBase {
   /**
    * @param throttleRequest {@code true} if quota manager should reject quota requests.
    */
-  public FrontendQuotaIntegrationTest(boolean throttleRequest, QuotaMode quotaMode) {
+  public FrontendPostProcessQuotaIntegrationTest(boolean throttleRequest, QuotaMode quotaMode) {
     super(null, null);
     this.throttleRequest = throttleRequest;
     this.quotaMode = quotaMode;

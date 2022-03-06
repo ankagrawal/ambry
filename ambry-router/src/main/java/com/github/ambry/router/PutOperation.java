@@ -38,10 +38,12 @@ import com.github.ambry.protocol.Crc32Impl;
 import com.github.ambry.protocol.PutRequest;
 import com.github.ambry.protocol.PutResponse;
 import com.github.ambry.quota.Chargeable;
+import com.github.ambry.quota.QuotaAction;
 import com.github.ambry.quota.QuotaChargeCallback;
 import com.github.ambry.quota.QuotaException;
 import com.github.ambry.quota.QuotaMethod;
 import com.github.ambry.quota.QuotaResource;
+import com.github.ambry.quota.QuotaUtils;
 import com.github.ambry.rest.NettyRequest;
 import com.github.ambry.rest.RestRequest;
 import com.github.ambry.server.ServerErrorCode;
@@ -1160,36 +1162,25 @@ class PutOperation {
       return operationTracker;
     }
 
+// TODO check if there is an opportunity to merge code with OperationQuotaCharger.
     @Override
-    public boolean check() {
+    public QuotaAction checkAndCharge(boolean shouldCheckExceedAllowed) {
+      QuotaAction quotaAction = QuotaAction.ALLOW;
       if (quotaChargeCallback == null || isCharged) {
-        return true;
-      }
-
-      return quotaChargeCallback.check();
-    }
-
-    @Override
-    public boolean charge() {
-      if (quotaChargeCallback == null || isCharged) {
-        return true;
+        return quotaAction;
       }
       try {
-        quotaChargeCallback.checkAndCharge(chunkBlobProperties.getBlobSize());
-        isCharged = true;
+        quotaAction =
+            quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false, chunkBlobProperties.getBlobSize());
+        isCharged = quotaAction == QuotaAction.ALLOW;
       } catch (QuotaException quotaException) {
+        // When there is an exception, we let the request through, because we don't want to affect user's request due to
+        // any issue with quota system. But we don't set isCharged flag to true, so that if charging is attempted again
+        // (due to chunk request parallelism), the charge can be applied.
         logger.warn(String.format("Quota charging failed in GetBlobOperation for blob %s due to %s ", blobId.toString(),
             quotaException.toString()));
       }
-      return isCharged;
-    }
-
-    @Override
-    public boolean quotaExceedAllowed() {
-      if (quotaChargeCallback == null) {
-        return true;
-      }
-      return quotaChargeCallback.quotaExceedAllowed();
+      return quotaAction;
     }
 
     @Override
@@ -1201,7 +1192,7 @@ class PutOperation {
         return quotaChargeCallback.getQuotaResource();
       } catch (QuotaException quotaException) {
         logger.error(String.format(
-            "Could create QuotaResource object during GetBlobOperation for the chunk %s due to %s. This should never happen.",
+            "Could create QuotaResource object during PutOperation for the chunk %s due to %s. This should never happen.",
             blobId.toString(), quotaException.toString()));
       }
       // A null return means quota resource could not be created for this chunk. The consumer should decide how to handle nulls.
@@ -1453,9 +1444,9 @@ class PutOperation {
       }
       if (done) {
         // the chunk is complete now. We can charge against quota for the chunk if its not a metadata chunk.
-        if (quotaChargeCallback != null && !(this instanceof MetadataPutChunk) && chunkException == null) {
+        if (QuotaUtils.postProcessCharge(quotaChargeCallback) && !(this instanceof MetadataPutChunk) && chunkException == null) {
           try {
-            quotaChargeCallback.checkAndCharge(chunkBlobProperties.getBlobSize());
+            quotaChargeCallback.checkAndCharge(false, true, chunkBlobProperties.getBlobSize());
           } catch (QuotaException quotaException) {
             // For now we only log for quota charge exceptions for in progress requests.
             logger.info("{}: Exception {} while handling quota charge event", loggingContext, quotaException.toString());
@@ -1522,7 +1513,7 @@ class PutOperation {
         String hostname = replicaId.getDataNodeId().getHostname();
         Port port = RouterUtils.getPortToConnectTo(replicaId, routerConfig.routerEnableHttp2NetworkClient);
         PutRequest putRequest = createPutRequest();
-        RequestInfo request = new RequestInfo(hostname, port, putRequest, replicaId, null);
+        RequestInfo request = new RequestInfo(hostname, port, putRequest, replicaId, this);
         int correlationId = putRequest.getCorrelationId();
         correlationIdToChunkPutRequestInfo.put(correlationId,
             new ChunkPutRequestInfo(replicaId, putRequest, time.milliseconds()));

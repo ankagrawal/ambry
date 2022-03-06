@@ -44,6 +44,7 @@ import com.github.ambry.quota.QuotaChargeCallback;
 import com.github.ambry.quota.QuotaException;
 import com.github.ambry.quota.QuotaMethod;
 import com.github.ambry.quota.QuotaResource;
+import com.github.ambry.quota.QuotaUtils;
 import com.github.ambry.rest.RestServiceErrorCode;
 import com.github.ambry.rest.RestServiceException;
 import com.github.ambry.server.ServerErrorCode;
@@ -736,31 +737,35 @@ class GetBlobOperation extends GetOperation {
     }
 
     @Override
-    public QuotaAction checkAndCharge() {
+    public QuotaAction checkAndCharge(boolean shouldCheckExceedAllowed) {
+      QuotaAction quotaAction = QuotaAction.ALLOW;
       if (quotaChargeCallback == null || isCharged) {
-        return QuotaAction.ALLOW;
+        return quotaAction;
       }
       try {
-        quotaChargeCallback.checkAndCharge(chunkSize);
-        isCharged = true;
+        quotaAction = quotaChargeCallback.checkAndCharge(shouldCheckExceedAllowed, false, chunkSize);
+        isCharged = quotaAction == QuotaAction.ALLOW;
       } catch (QuotaException quotaException) {
-        logger.warn(String.format("Quota charging failed in GetBlobOperation for blob {} due to {} ", blobId.toString(),
+        // When there is an exception, we let the request through, because we don't want to affect user's request due to
+        // any issue with quota system. But we don't set isCharged flag to true, so that if charging is attempted again
+        // (due to chunk request parallelism), the charge can be passed down.
+        logger.warn(String.format("Quota charging failed in GetBlobOperation for blob %s due to %s.", blobId.toString(),
             quotaException.toString()));
       }
-      return isCharged;
+      return quotaAction;
     }
 
     @Override
     public QuotaResource getQuotaResource() {
-      if(quotaChargeCallback == null) {
+      if (quotaChargeCallback == null) {
         return null;
       }
       try {
         return quotaChargeCallback.getQuotaResource();
       } catch (QuotaException quotaException) {
         logger.error(
-            String.format("Could create QuotaResource object during GetBlobOperation for the chunk {} due to {}. This should never happen.",
-                blobId.toString(), quotaException.toString()));
+            "Could not create QuotaResource object during GetBlobOperation for the chunk {} due to {}. This should never happen.",
+            blobId.toString(), quotaException.toString());
       }
       // A null return means quota resource could not be created for this chunk. The consumer should decide how to handle nulls.
       return null;
@@ -894,20 +899,18 @@ class GetBlobOperation extends GetOperation {
         chunkCompleted = true;
       }
       if (chunkCompleted) {
-        if (state != ChunkState.Complete && quotaChargeCallback != null && chunkException == null) {
+        if (state != ChunkState.Complete && QuotaUtils.postProcessCharge(quotaChargeCallback) && chunkException == null) {
           try {
             if (chunkSize != -1) {
-              quotaChargeCallback.checkAndCharge(chunkSize);
+              quotaChargeCallback.checkAndCharge(false, true, chunkSize);
             } else {
-              if (this instanceof FirstGetChunk && ((FirstGetChunk) this).blobType == BlobType.DataBlob
-                  && blobInfo != null) {
-                quotaChargeCallback.checkAndCharge(blobInfo.getBlobProperties().getBlobSize());
+              if (this instanceof FirstGetChunk && ((FirstGetChunk) this).blobType == BlobType.DataBlob && blobInfo != null) {
+                quotaChargeCallback.checkAndCharge(false, true, blobInfo.getBlobProperties().getBlobSize());
               }
               // other cases mean that either this was a metadata blob, or there was an error.
             }
           } catch (QuotaException quotaException) {
-            logger.info("Exception {} occurred during the quota charge event of blob {}", quotaException,
-                blobId.getID());
+            logger.info("Exception {} occurred during the quota charge event of blob {}", quotaException, blobId.getID());
           }
         }
         setOperationException(chunkException);
@@ -970,12 +973,10 @@ class GetBlobOperation extends GetOperation {
       routerMetrics.routerRequestLatencyMs.update(requestLatencyMs);
       routerMetrics.getDataNodeBasedMetrics(getRequestInfo.replicaId.getDataNodeId()).getRequestLatencyMs.update(
           requestLatencyMs);
-      if(responseInfo.getQuotaException() != null) {
-        QuotaException quotaException = responseInfo.getQuotaException();
-        logger.trace("GetBlobRequest with response correlationId {} recieved quota exception {} ", correlationId,
-            quotaException.toString());
+      if(responseInfo.isQuotaRejected()) {
+        logger.trace("GetBlobRequest with response correlationId {} rejected because it exceeded quota", correlationId);
         onQuotaErrorResponse(getRequestInfo.replicaId,
-            new RouterException(quotaException.getMessage(), RouterErrorCode.TooManyRequests));
+            new RouterException("QuotaExceeded", RouterErrorCode.TooManyRequests));
       } else if (responseInfo.getError() != null) {
         // responseInfo.getError() returns NetworkClientErrorCode. If error is not null, it probably means (1) connection
         // checkout timed out; (2) pending connection timed out; (3) established connection timed out. In all these cases,

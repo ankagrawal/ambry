@@ -33,6 +33,7 @@ import com.github.ambry.protocol.GetResponse;
 import com.github.ambry.protocol.PartitionResponseInfo;
 import com.github.ambry.quota.QuotaChargeCallback;
 import com.github.ambry.quota.QuotaException;
+import com.github.ambry.quota.QuotaUtils;
 import com.github.ambry.server.ServerErrorCode;
 import com.github.ambry.store.MessageInfo;
 import com.github.ambry.utils.Time;
@@ -211,12 +212,10 @@ class GetBlobInfoOperation extends GetOperation {
       // Ignore. The request must have timed out.
       return;
     }
-    if(responseInfo.getQuotaException() != null) {
-      logger.trace("GetBlobInfoRequest with response correlationId {} recieved quota exception {} ", correlationId,
-          responseInfo.getQuotaException().toString());
-      onErrorResponse(getRequestInfo.replicaId, new RouterException(
-          responseInfo.getQuotaException().getMessage(),
-          RouterErrorCode.TooManyRequests));
+    if(responseInfo.isQuotaRejected()) {
+      logger.trace("GetBlobInfoRequest with response correlationId {} was rejected because quota was exceeded.",
+          correlationId);
+      onErrorResponse(getRequestInfo.replicaId, new RouterException("QuotaExceeded", RouterErrorCode.TooManyRequests));
     } else {
       long requestLatencyMs = time.milliseconds() - getRequestInfo.startTimeMs;
       routerMetrics.routerRequestLatencyMs.update(requestLatencyMs);
@@ -452,9 +451,9 @@ class GetBlobInfoOperation extends GetOperation {
     }
 
     if (operationCompleted && operationCallbackInvoked.compareAndSet(false, true)) {
-      if (quotaChargeCallback != null) {
+      if (QuotaUtils.postProcessCharge(quotaChargeCallback)) {
         try {
-          quotaChargeCallback.charge();
+          quotaChargeCallback.checkAndCharge(false, true);
         } catch (QuotaException quotaException) {
           // No exception should be thrown when doing quota charge for blobinfo operation.
           logger.trace("Unexpected exception {} thrown on handling quota event for {}", quotaException, blobId);

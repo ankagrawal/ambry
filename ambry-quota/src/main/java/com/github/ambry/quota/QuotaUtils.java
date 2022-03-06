@@ -80,11 +80,19 @@ public class QuotaUtils {
    */
   public static QuotaChargeCallback buildQuotaChargeCallback(RestRequest restRequest, QuotaManager quotaManager,
       boolean isQuotaEnforcedOnRequest) {
-    if (!quotaManager.getQuotaConfig().bandwidthThrottlingFeatureEnabled) {
-      return new PostProcessQuotaChargeCallback(quotaManager, restRequest, isQuotaEnforcedOnRequest);
+    if (quotaManager.getQuotaConfig().bandwidthThrottlingFeatureEnabled) {
+      return new PreProcessQuotaChargeCallback(quotaManager, restRequest, isQuotaEnforcedOnRequest);
     } else {
-      throw new UnsupportedOperationException("Not implemented yet.");
+      return new PostProcessQuotaChargeCallback(quotaManager, restRequest, isQuotaEnforcedOnRequest);
     }
+  }
+
+  /**
+   * @param quotaChargeCallback {@link QuotaChargeCallback} object.
+   * @return {@code true} if the charge needs to happen after a request is processed. {@code false} otherwise.
+   */
+  public static boolean postProcessCharge(QuotaChargeCallback quotaChargeCallback) {
+    return quotaChargeCallback != null && !quotaChargeCallback.getQuotaConfig().bandwidthThrottlingFeatureEnabled;
   }
 
   /*
