@@ -24,7 +24,6 @@ import com.github.ambry.utils.Utils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -71,13 +70,15 @@ public class AmbryQuotaManager implements QuotaManager {
       throws ReflectiveOperationException {
     List<Pair<String, String>> quotaEnforcerSourcePairs =
         parseQuotaEnforcerAndSourceInfo(quotaConfig.requestQuotaEnforcerSourcePairInfoJson);
-    Map<String, QuotaSource> quotaSourceObjectMap =
+    List<Pair<String, QuotaSource>> quotaSourceObjectPairs =
         buildQuotaSources(quotaEnforcerSourcePairs.stream().map(Pair::getSecond).collect(Collectors.toList()),
             quotaConfig, accountService);
     quotaEnforcers = new HashSet<>();
+    int i = 0;
     for (Pair<String, String> quotaEnforcerSourcePair : quotaEnforcerSourcePairs) {
       quotaEnforcers.add(((QuotaEnforcerFactory) Utils.getObj(quotaEnforcerSourcePair.getFirst(), quotaConfig,
-          quotaSourceObjectMap.get(quotaEnforcerSourcePair.getSecond()), accountStatsStore)).getQuotaEnforcer());
+          quotaSourceObjectPairs.get(i).getSecond(), accountStatsStore)).getQuotaEnforcer());
+      i++;
     }
     if (quotaEnforcers.isEmpty()) {
       LOGGER.warn("No quota enforcers in AmbryQuotaManager. No quota will be tracked or enforced.");
@@ -300,15 +301,13 @@ public class AmbryQuotaManager implements QuotaManager {
    * @return Map of {@link QuotaSourceFactory} class names to {@link QuotaSource} objects.
    * @throws ReflectiveOperationException if the source objects could not be created.
    */
-  private Map<String, QuotaSource> buildQuotaSources(Collection<String> quotaSourceFactoryClasses,
+  private List<Pair<String, QuotaSource>> buildQuotaSources(Collection<String> quotaSourceFactoryClasses,
       QuotaConfig quotaConfig, AccountService accountService) throws ReflectiveOperationException {
-    Map<String, QuotaSource> quotaSourceObjectMap = new HashMap<>();
+    List<Pair<String, QuotaSource>> quotaSourceObjectPair = new ArrayList<>();
     for (String quotaSourceFactoryClass : quotaSourceFactoryClasses) {
-      if (!quotaSourceObjectMap.containsKey(quotaSourceFactoryClass)) {
-        quotaSourceObjectMap.put(quotaSourceFactoryClass,
-            ((QuotaSourceFactory) Utils.getObj(quotaSourceFactoryClass, quotaConfig, accountService)).getQuotaSource());
-      }
+      quotaSourceObjectPair.add(new Pair(quotaSourceFactoryClass,
+          ((QuotaSourceFactory) Utils.getObj(quotaSourceFactoryClass, quotaConfig, accountService)).getQuotaSource()));
     }
-    return quotaSourceObjectMap;
+    return quotaSourceObjectPair;
   }
 }

@@ -59,7 +59,7 @@ public class PreProcessQuotaChargeCallback implements QuotaChargeCallback {
         .entrySet()
         .stream()
         .collect(Collectors.toMap(entry -> QuotaName.valueOf(entry.getKey()), Map.Entry::getValue));
-    return quotaManager.chargeAndRecommend(restRequest, requestCost, false, true);
+    return quotaManager.chargeAndRecommend(restRequest, requestCost, false, false);
   }
 
   @Override

@@ -299,7 +299,7 @@ public class NonBlockingPostProcessRouterQuotaCallbackTest extends NonBlockingRo
       assertExpectedThreadCounts(0, 0);
 
       //submission after closing should return a future that is already done.
-      //assertClosed();
+      assertClosed();
     }
   }
 

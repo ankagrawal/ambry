@@ -278,7 +278,7 @@ public class NonBlockingRouterPreProcessQuotaCallbackTest extends NonBlockingRou
       setOperationParams(blobSize, TTL_SECS, account.getId(), account.getAllContainers().iterator().next().getId());
       delayingQuotaSource.getCuQuota().put(String.valueOf(account.getId()), new CapacityUnit(quotaConfig.quotaAccountingUnit*10, quotaConfig.quotaAccountingUnit*10));
       delayingQuotaSource.getCuUsage().put(String.valueOf(account.getId()), new CapacityUnit());
-      rejectingQuotaSource.getCuQuota().put(String.valueOf(account.getId()), new CapacityUnit(quotaConfig.quotaAccountingUnit*10, quotaConfig.quotaAccountingUnit*10));
+      rejectingQuotaSource.getCuQuota().put(String.valueOf(account.getId()), new CapacityUnit(4, 4));
       rejectingQuotaSource.getCuUsage().put(String.valueOf(account.getId()), new CapacityUnit());
       String compositeBlobId =
           router.putBlob(putBlobProperties, putUserMetadata, putChannel, PutBlobOptions.DEFAULT, null,
@@ -304,7 +304,16 @@ public class NonBlockingRouterPreProcessQuotaCallbackTest extends NonBlockingRou
       Assert.assertEquals(4, quotaUsage.getRcu());
       quotaUsage = rejectingQuotaSource.getCuUsage().get(String.valueOf(account.getId()));
       Assert.assertEquals(4, quotaUsage.getWcu());
-      Assert.assertEquals(0, quotaUsage.getRcu());
+      Assert.assertEquals(4, quotaUsage.getRcu());
+      retainingAsyncWritableChannel = new RetainingAsyncWritableChannel();
+      try {
+        GetBlobResult getBlobResult =
+            router.getBlob(compositeBlobId, new GetBlobOptionsBuilder().build(), null, quotaChargeCallback).get();
+        fail("getBlob should throw exception if request is be rejected by an enforcer.");
+      } catch (ExecutionException ex) {
+        Assert.assertEquals(RouterErrorCode.TooManyRequests, ((RouterException)ex.getCause()).getErrorCode());
+      }
+      retainingAsyncWritableChannel.consumeContentAsInputStream().close();
     } finally {
       router.close();
       assertExpectedThreadCounts(0, 0);
@@ -396,7 +405,7 @@ public class NonBlockingRouterPreProcessQuotaCallbackTest extends NonBlockingRou
 
     public TestCUQuotaSource getTestCuQuotaSource() {
       for(QuotaEnforcer quotaEnforcer : quotaEnforcers) {
-        if(quotaEnforcer instanceof AmbryCUQuotaEnforcer) {
+        if(quotaEnforcer instanceof AmbryCUQuotaEnforcer && !(quotaEnforcer instanceof RejectingQuotaEnforcer)) {
           return (TestCUQuotaSource) quotaEnforcer.getQuotaSource();
         }
       }
