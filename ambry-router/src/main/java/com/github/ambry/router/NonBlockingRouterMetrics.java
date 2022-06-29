@@ -572,7 +572,7 @@ public class NonBlockingRouterMetrics {
     requestsWithUnknownQuotaResourceRate = metricRegistry.meter(
         MetricRegistry.name(QuotaAwareOperationController.class, "RequestsWithUnknownQuotaResourceRate"));
     rejectedRequestRate =
-        metricRegistry.meter(MetricRegistry.name(QuotaAwareOperationController.class, "NonQuotaCompliantRequestRate"));
+        metricRegistry.meter(MetricRegistry.name(QuotaAwareOperationController.class, "RejectedRequestRate"));
     delayedRequestRate =
         metricRegistry.meter(MetricRegistry.name(QuotaAwareOperationController.class, "DelayedRequestRate"));
     exceedAllowedRequestRate =
