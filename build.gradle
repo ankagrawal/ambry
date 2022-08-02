@@ -437,7 +437,8 @@ project(':ambry-frontend') {
                 project(':ambry-commons'),
                 project(':ambry-rest'),
                 project(':ambry-router'),
-                project(':ambry-quota')
+                project(':ambry-quota'),
+                project(':ambry-named-mysql')
         compile "io.dropwizard.metrics:metrics-core:$metricsVersion"
         testCompile project(':ambry-test-utils')
         testCompile project(':ambry-quota')
