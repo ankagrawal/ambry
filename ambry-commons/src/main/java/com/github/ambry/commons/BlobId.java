@@ -288,9 +288,11 @@ public class BlobId extends StoreKey {
    * @param clusterMap of the cluster that the partition of the blobId belongs to
    * @param ensureFullyRead {@code true} if the stream should have no more available bytes after deserializing the blob
    *                        ID.
+   * @param ignorePartitionId If {@code true} then ignore the partition ID in the stream.
    * @throws IOException
    */
-  private BlobId(DataInputStream stream, ClusterMap clusterMap, boolean ensureFullyRead) throws IOException {
+  private BlobId(DataInputStream stream, ClusterMap clusterMap, boolean ensureFullyRead, boolean ignorePartitionId)
+      throws IOException {
     BlobIdPreamble preamble = new BlobIdPreamble(stream);
     version = preamble.version;
     type = preamble.type;
@@ -299,9 +301,13 @@ public class BlobId extends StoreKey {
     containerId = preamble.containerId;
     isEncrypted = preamble.isEncrypted;
     blobDataType = preamble.blobDataType;
-    partitionId = clusterMap.getPartitionIdFromStream(stream);
-    if (partitionId == null) {
-      throw new IllegalArgumentException("Partition ID cannot be null");
+    if (!ignorePartitionId) {
+      partitionId = clusterMap.getPartitionIdFromStream(stream);
+      if (partitionId == null) {
+        throw new IllegalArgumentException("Partition ID cannot be null");
+      }
+    } else {
+      partitionId = null;
     }
     switch (version) {
       case BLOB_ID_V6:
@@ -326,7 +332,18 @@ public class BlobId extends StoreKey {
    * @throws IOException
    */
   public BlobId(String id, ClusterMap clusterMap) throws IOException {
-    this(new DataInputStream(new ByteBufferInputStream(ByteBuffer.wrap(Base64.decodeBase64(id)))), clusterMap, true);
+    this(new DataInputStream(new ByteBufferInputStream(ByteBuffer.wrap(Base64.decodeBase64(id)))), clusterMap, true, false);
+  }
+
+  /**
+   * Re-constructs existing blobId by deserializing from BlobId "string".
+   * The partition ID is ignored.
+   *
+   * @param id of Blob as output by BlobId.getID().
+   * @throws IOException
+   */
+  public BlobId(String id) throws IOException {
+    this(new DataInputStream(new ByteBufferInputStream(ByteBuffer.wrap(Base64.decodeBase64(id)))), null, false, true);
   }
 
   /**
@@ -337,7 +354,7 @@ public class BlobId extends StoreKey {
    * @throws IOException
    */
   public BlobId(DataInputStream stream, ClusterMap clusterMap) throws IOException {
-    this(stream, clusterMap, false);
+    this(stream, clusterMap, false, false);
   }
 
   /**
@@ -814,7 +831,7 @@ public class BlobId extends StoreKey {
    * A class that can hold all the information embedded in a BlobId up to and not including the {@link PartitionId}
    * The preamble can be parsed off a blob id string without a {@link ClusterMap}.
    */
-  private static class BlobIdPreamble {
+  public static class BlobIdPreamble {
     final short version;
     final BlobIdType type;
     final byte datacenterId;
@@ -829,7 +846,7 @@ public class BlobId extends StoreKey {
      * @param stream the {@link DataInputStream} from which to read.
      * @throws IOException if there is an error reading from the stream.
      */
-    BlobIdPreamble(DataInputStream stream) throws IOException {
+    public BlobIdPreamble(DataInputStream stream) throws IOException {
       version = stream.readShort();
       byte blobIdFlag;
       switch (version) {
