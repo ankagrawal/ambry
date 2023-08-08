@@ -106,6 +106,7 @@ public class ServerAdminTool implements Closeable {
    * The different operations supported by the tool.
    */
   private enum Operation {
+    DeserializeBlobIdWithoutPartition,
     GetBlobProperties,
     GetUserMetadata,
     GetBlob,
@@ -297,13 +298,18 @@ public class ServerAdminTool implements Closeable {
     }
     FileOutputStream outputFileStream = new FileOutputStream(config.dataOutputFilePath);
     DataNodeId dataNodeId = clusterMap.getDataNodeId(config.hostname, config.port);
-    if (dataNodeId == null) {
+    if (dataNodeId == null && isDataNodeNeededForOperation(config.typeOfOperation)) {
       throw new IllegalArgumentException(
           "Could not find a data node corresponding to " + config.hostname + ":" + config.port);
     }
     switch (config.typeOfOperation) {
+      case DeserializeBlobIdWithoutPartition:
+        BlobId blobId = new BlobId(config.blobId);
+        LOGGER.info("Deserialized blob id: version: {}, type: {}, datacenterId: {}, accountId: {}, containerId: {}, blobDataType: {}",
+            blobId.getVersion(), blobId.getType(), blobId.getDatacenterId(), blobId.getAccountId(), blobId.getContainerId(), blobId.getBlobDataType());
+        break;
       case GetBlobProperties:
-        BlobId blobId = new BlobId(config.blobId, clusterMap);
+        blobId = new BlobId(config.blobId, clusterMap);
         Pair<ServerErrorCode, BlobProperties> bpResponse =
             serverAdminTool.getBlobProperties(dataNodeId, blobId, config.getOption, clusterMap);
         if (bpResponse.getFirst() == ServerErrorCode.No_Error) {
@@ -841,6 +847,15 @@ public class ServerAdminTool implements Closeable {
     response.release();
     return new Pair<>(adminResponse.getError(),
         adminResponse.getError() == ServerErrorCode.No_Error && adminResponse.isCaughtUp());
+  }
+
+  /**
+   * Return if it is needed to resolve the data node for this operation.
+   * @param operation the {@code Operation} to be performed.
+   * @return {@code true} if it is needed to resolve the data node for this operation, {@code false} otherwise.
+   */
+  private static boolean isDataNodeNeededForOperation(Operation operation) {
+    return operation != Operation.DeserializeBlobIdWithoutPartition;
   }
 
   /**
