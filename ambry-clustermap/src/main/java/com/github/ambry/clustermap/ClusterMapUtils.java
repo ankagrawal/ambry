@@ -259,7 +259,7 @@ public class ClusterMapUtils {
       return null;
     }
     if (!partitionClass.equals(selected.getPartitionClass())) {
-      logger.debug(
+      logger.info(
           "While reserving metadata chunk id, no partitions for partitionClass='{}' found, partitionClass='{}' used"
               + " instead for metadata chunk.", partitionClass, selected.getPartitionClass());
       reservedMetadataIdMetrics.numUnexpectedReservedPartitionClassCount.inc();
