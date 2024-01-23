@@ -196,7 +196,7 @@ public class ClusterMapConfig {
    * deployed on a host called 'host1.example.com'.
    */
   @Config("clustermap.resolve.hostnames")
-  @Default("true")
+  @Default("false")
   public final boolean clusterMapResolveHostnames;
 
   /**
@@ -368,7 +368,7 @@ public class ClusterMapConfig {
     clusterMapDatacenterName = verifiableProperties.getString(CLUSTERMAP_DATACENTER_NAME);
     clusterMapHostName = verifiableProperties.getString(CLUSTERMAP_HOST_NAME);
     clusterMapPort = verifiableProperties.getInteger(CLUSTERMAP_PORT, null);
-    clusterMapResolveHostnames = verifiableProperties.getBoolean("clustermap.resolve.hostnames", true);
+    clusterMapResolveHostnames = verifiableProperties.getBoolean("clustermap.resolve.hostnames", false);
     clusterMapDefaultPartitionClass =
         verifiableProperties.getString("clustermap.default.partition.class", MAX_REPLICAS_ALL_DATACENTERS);
     clustermapCurrentXid = verifiableProperties.getLong("clustermap.current.xid", Long.MAX_VALUE);
